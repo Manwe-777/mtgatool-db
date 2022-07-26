@@ -1,0 +1,11 @@
+node_modules
+coverage
+dist
+test-alice
+test-bob
+test-node-a
+test-node-b
+test-keys-a
+test-keys-b
+test-verify-a
+bundle.js
