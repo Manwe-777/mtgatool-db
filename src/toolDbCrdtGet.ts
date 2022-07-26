@@ -20,9 +20,7 @@ export default function toolDbCrdtGet(
       return;
     }
     const finalKey = userNamespaced ? `:${this.user?.pubKey}.${key}` : key;
-    if (this.options.debug) {
-      console.log("CRDT GET > " + finalKey);
-    }
+    this.logger("CRDT GET > " + finalKey);
 
     const msgId = textRandom(10);
 
@@ -42,9 +40,7 @@ export default function toolDbCrdtGet(
     }, timeoutMs);
 
     this.addIdListener(msgId, (msg) => {
-      if (this.options.debug) {
-        console.log("CRDT GET RECV  > " + finalKey, msg);
-      }
+      this.logger("CRDT GET RECV  > " + finalKey, msg);
 
       clearTimeout(cancelTimeout);
       if (msg.type === "crdt") {

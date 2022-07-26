@@ -8,12 +8,12 @@ import {
   exportKey,
   generateKeyPair,
   PutMessage,
-  sha1,
-  textRandom,
   ToolDbMessage,
   VerificationData,
   verifyMessage,
 } from ".";
+
+import logger from "./logger";
 
 import toolDbGet from "./toolDbGet";
 import toolDbPut from "./toolDbPut";
@@ -62,7 +62,11 @@ interface Verificator<T> {
 export default class ToolDb extends EventEmitter {
   private _network;
   private _store;
-  private _peers: Peer[] = [];
+  private _peers: Record<string, Peer> = {};
+
+  private _serverPeers: Peer[] = [];
+
+  public logger = logger;
 
   private _documents: Record<string, FreezeObject<any>> = {};
 
@@ -71,6 +75,8 @@ export default class ToolDb extends EventEmitter {
   public verifyMessage = verifyMessage;
 
   private _subscriptions: string[] = [];
+
+  public isConnected = false;
 
   get subscriptions() {
     return this._subscriptions;
@@ -88,6 +94,10 @@ export default class ToolDb extends EventEmitter {
     return this._processedOutHashes;
   }
 
+  get serverPeers() {
+    return this._serverPeers;
+  }
+
   public subscribeData = toolDbSubscribe;
 
   // Emitted when there are no more server peers connected to
@@ -97,6 +107,14 @@ export default class ToolDb extends EventEmitter {
 
   // Emitted when a server peer responds with "pong"
   public onConnect = () => {
+    //
+  };
+
+  public onPeerDisconnect = (peerId: string) => {
+    //
+  };
+
+  public onPeerConnect = (peerId: string) => {
     //
   };
 
@@ -286,13 +304,13 @@ export default class ToolDb extends EventEmitter {
 
             exportKey("spki", key.publicKey).then((skpub) => {
               this._options.id = encodeKeyString(skpub as ArrayBuffer);
-              this.emit("init", this._options._id);
+              this.emit("init", this._options.id);
             });
           }
         })
         .catch(console.warn);
     } else {
-      this.emit("init", this._options._id);
+      this.emit("init", this._options.id);
     }
 
     // These could be made to be customizable by setting the variables as public

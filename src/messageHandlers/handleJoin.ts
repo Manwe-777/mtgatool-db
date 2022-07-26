@@ -9,7 +9,7 @@ export default function handleJoin(
   verifyPeer(message.peer).then((verified) => {
     // Add this peer to our list of peers
     if (verified) {
-      const filteredPeers = this.peers.filter(
+      const filteredPeers = Object.values(this.peers).filter(
         (p) => p.pubkey !== message.peer.pubkey
       );
       if (
@@ -18,11 +18,14 @@ export default function handleJoin(
         message.peer.port
       ) {
         // Add this peer to the list
-        this.peers.push(message.peer);
+        this.peers[message.peer.pubkey] = message.peer;
+
         // Reply with our servers list
         this.network.sendToClientId(remotePeerId, {
           type: "servers",
-          servers: this.peers.filter((p) => p.topic === message.peer.topic),
+          servers: Object.values(this.peers).filter(
+            (p) => p.topic === message.peer.topic
+          ),
           id: message.id,
         } as ServersMessage);
 

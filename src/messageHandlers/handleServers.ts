@@ -10,13 +10,7 @@ export default function handleServers(
     verifyPeer(peer).then((verified) => {
       // Add this peer to our list of peers
       if (verified) {
-        const filteredPeers = this.peers.findIndex(
-          (p) => p.pubkey === peer.pubkey
-        );
-        if (filteredPeers === -1) {
-          // Add this peer to the list
-          this.peers.push(peer);
-        }
+        this.peers[peer.pubkey] = peer;
       }
     });
   });

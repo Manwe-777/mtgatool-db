@@ -57,12 +57,14 @@ export interface PingMessage extends BaseMessage {
   type: "ping";
   isServer: boolean;
   clientId: string;
+  peer: Peer;
 }
 
 export interface PongMessage extends BaseMessage {
   type: "pong";
   isServer: boolean;
   clientId: string;
+  servers: Peer[];
 }
 
 export interface QueryMessage extends BaseMessage {

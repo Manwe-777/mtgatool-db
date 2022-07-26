@@ -1,28 +1,7 @@
 import { Server as HTTPServer } from "http";
 import { Server as HTTPSServer } from "https";
 import { ToolDb, ToolDbMessage } from "..";
-
-export class ToolDbNetworkAdapter {
-  constructor(db: ToolDb) {
-    //
-  }
-
-  public close(clientId: string): void {
-    //
-  }
-
-  public sendToAll(
-    msg: ToolDbMessage,
-    crossServerOnly = false,
-    isRelay = false
-  ) {
-    //
-  }
-
-  public sendToClientId(clientId: string, msg: ToolDbMessage) {
-    //
-  }
-}
+import ToolDbNetworkAdapter from "../networkAdapterBase";
 
 export interface Peer {
   topic: string;
@@ -74,7 +53,6 @@ export interface ToolDbOptions {
   topic: string;
   publicKey: CryptoKey | undefined;
   privateKey: CryptoKey | undefined;
-  [extra: string]: any;
 }
 
 export interface ParsedKeys {

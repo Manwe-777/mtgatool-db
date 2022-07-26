@@ -19,9 +19,7 @@ export default function toolDbSubscribe(
       return;
     }
     const finalKey = userNamespaced ? `:${this.user?.pubKey}.${key}` : key;
-    if (this.options.debug) {
-      console.log("Subscribe > " + finalKey);
-    }
+    this.logger("Subscribe > " + finalKey);
 
     const msgId = textRandom(10);
 

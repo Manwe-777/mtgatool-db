@@ -49,9 +49,7 @@ export default function handleCrdtPut(
           try {
             [newDoc] = Automerge.applyChanges(Automerge.init(), changes);
           } catch (ee) {
-            if (this.options.debug) {
-              console.log(ee);
-            }
+            this.logger(ee);
           }
         }
 

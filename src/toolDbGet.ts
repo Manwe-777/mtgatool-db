@@ -20,9 +20,7 @@ export default function toolDbGet<T = any>(
       return;
     }
     const finalKey = userNamespaced ? `:${this.user?.pubKey}.${key}` : key;
-    if (this.options.debug) {
-      console.log("GET > " + finalKey);
-    }
+    this.logger("GET > " + finalKey);
 
     const msgId = textRandom(10);
 
@@ -42,9 +40,7 @@ export default function toolDbGet<T = any>(
     }, timeoutMs);
 
     this.addIdListener(msgId, (msg) => {
-      if (this.options.debug) {
-        console.log("GET RECV  > " + finalKey, msg);
-      }
+      this.logger("GET RECV  > " + finalKey, msg);
 
       clearTimeout(cancelTimeout);
       if (msg.type === "put") {

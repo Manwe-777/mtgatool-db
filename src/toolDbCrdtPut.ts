@@ -61,9 +61,7 @@ export default function toolDbCrdtPut<T = any>(
                 v: encodedData,
               };
 
-              if (this.options.debug) {
-                console.log("PUT CRDT > " + key, data);
-              }
+              this.logger("PUT CRDT > " + key, data);
 
               const finalMessage: CrdtPutMessage = {
                 type: "crdtPut",

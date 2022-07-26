@@ -1,39 +1,34 @@
-import { JoinMessage, PongMessage, textRandom, ToolDb } from "..";
-import { Peer } from "../types/tooldb";
-import getPeerSignature from "../utils/getPeerSignature";
+import { ToolDb, PongMessage } from "..";
+import verifyPeer from "../utils/verifyPeer";
 
 export default function handlePong(
   this: ToolDb,
   message: PongMessage,
   remotePeerId: string
 ) {
-  this.onConnect();
+  if (!this.isConnected) {
+    this.isConnected = true;
+    this.onConnect();
+  }
 
-  if (this.options.server && this.options.privateKey) {
-    const timestamp = new Date().getTime();
-
-    getPeerSignature(
-      this.options.privateKey,
-      this.options.topic,
-      timestamp,
-      this.options.host,
-      this.options.port
-    ).then((signature) => {
-      const meAsPeer: Peer = {
-        topic: this.options.topic,
-        timestamp: timestamp,
-        host: this.options.host,
-        port: this.options.port,
-        pubkey: this.options.id,
-        sig: signature,
-      };
-
-      this.network.sendToClientId(remotePeerId, {
-        type: "join",
-        peer: meAsPeer,
-        to: [],
-        id: textRandom(10),
-      } as JoinMessage);
+  if (message.servers) {
+    message.servers.forEach((peer) => {
+      verifyPeer(peer).then((verified) => {
+        // Verify integrity and topic
+        if (verified && peer.topic === this.options.topic) {
+          this.peers[peer.pubkey] = peer;
+          // Add this peer to our list of peers
+          const filteredPeers = this.serverPeers.filter(
+            (p) => p.pubkey === peer.pubkey
+          );
+          if (filteredPeers.length === 0 && peer.host && peer.port) {
+            // Add this peer to the list
+            this.serverPeers.push(peer);
+          }
+        }
+      });
     });
   }
+
+  this.onPeerConnect(message.clientId);
 }

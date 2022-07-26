@@ -28,6 +28,7 @@ if (typeof window === "undefined") {
 }
 
 export { default as proofOfWork } from "./utils/proofOfWork";
+export { default as uniq } from "./utils/uniq";
 export { default as sha1 } from "./utils/sha1";
 export { default as sha256 } from "./utils/sha256";
 export { default as signData } from "./utils/signData";
@@ -62,8 +63,8 @@ export { default as loadKeysComb } from "./utils/crypto/loadKeysComb";
 export { default as saveKeysComb } from "./utils/crypto/saveKeysComb";
 export { default as verifyData } from "./utils/crypto/verifyData";
 
-export { default as toolDbNetwork } from "./toolDbNetwork";
-export { default as toolDbWebrtc } from "./toolDbWebrtc";
+export { default as ToolDbNetworkAdapter } from "./networkAdapterBase";
+export { default as ToolDbNetwork } from "./toolDbNetwork";
 
 export { default as handleCrdt } from "./messageHandlers/handleCrdt";
 export { default as handleCrdtGet } from "./messageHandlers/handleCrdtGet";

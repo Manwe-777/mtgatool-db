@@ -17,10 +17,9 @@ export default function handleCrdtGet(
         doc: uint8ToBase64(saved),
       } as CrdtMessage);
     } else {
-      if (this.options.debug) {
-        console.log("Local key not found, relay", JSON.stringify(message));
-      }
-      this.network.sendToAll(message, false, true);
+      this.logger("Local key not found, relay", JSON.stringify(message));
+
+      this.network.sendToAll(message, false);
     }
   });
 }
