@@ -413,46 +413,52 @@ export default class toolDbNetwork extends ToolDbNetworkAdapter {
     this.trackerUrls.forEach(
       (url) => delete this.socketListeners[url][this.infoHash]
     );
-    clearInterval(this.announceInterval);
+    if (this.announceInterval) {
+      clearInterval(this.announceInterval);
+    }
     this.cleanPool();
   };
 
   constructor(db: ToolDb) {
     super(db);
 
-    this.announceInterval = setInterval(
-      () => this.announceAll(),
-      announceSecs * 1000
-    );
+    if (typeof window !== "undefined") {
+      this.announceInterval = setInterval(
+        () => this.announceAll(),
+        announceSecs * 1000
+      );
 
-    setInterval(() => this.peersCheck(), 100);
+      setInterval(() => this.peersCheck(), 100);
+
+      // Stop announcing after maxAnnounceSecs
+      const intervalStart = new Date().getTime();
+      const checkInterval = setInterval(() => {
+        if (
+          !this.tooldb.options.server &&
+          new Date().getTime() - intervalStart > maxAnnounceSecs * 1000
+        ) {
+          clearInterval(checkInterval);
+          if (this.announceInterval) {
+            clearInterval(this.announceInterval);
+          }
+        }
+      }, 200);
+
+      this.infoHash = sha1(`tooldb:${this.tooldb.options.topic}`).slice(20);
+
+      // Do not announce if we hit our max peers cap
+      if (Object.keys(this.peerMap).length < maxPeers) {
+        this.announceAll();
+      } else {
+        if (this.offerPool) {
+          this.cleanPool();
+        }
+      }
+    }
 
     this.tooldb.options.peers.forEach((p) => {
       this.connectTo(p.host, p.port);
     });
-
-    // Stop announcing after maxAnnounceSecs
-    const intervalStart = new Date().getTime();
-    const checkInterval = setInterval(() => {
-      if (
-        !this.tooldb.options.server &&
-        new Date().getTime() - intervalStart > maxAnnounceSecs * 1000
-      ) {
-        clearInterval(checkInterval);
-        clearInterval(this.announceInterval);
-      }
-    }, 200);
-
-    this.infoHash = sha1(`tooldb:${this.tooldb.options.topic}`).slice(20);
-
-    // Do not announce if we hit our max peers cap
-    if (Object.keys(this.peerMap).length < maxPeers) {
-      this.announceAll();
-    } else {
-      if (this.offerPool) {
-        this.cleanPool();
-      }
-    }
 
     // Basically the same as the WS network adapter
     // Only for Node!
