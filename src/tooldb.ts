@@ -270,6 +270,7 @@ export default class ToolDb extends EventEmitter {
     privateKey: undefined,
     useWebrtc: true,
     serveSocket: false,
+    maxPeers: 4,
   };
 
   get options() {

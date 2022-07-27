@@ -14,7 +14,7 @@ type IOffers = Record<
 >;
 
 const offerPoolSize = 5;
-const maxPeers = 4;
+
 const announceSecs = 30;
 const maxAnnounceSecs = 86400;
 
@@ -351,7 +351,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
         return;
       }
 
-      if (Object.keys(this.peerMap).length >= maxPeers) {
+      if (Object.keys(this.peerMap).length >= this.tooldb.options.maxPeers) {
         if (this.offerPool) {
           this.cleanPool();
         }
@@ -449,7 +449,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       this.infoHash = sha1(`tooldb:${this.tooldb.options.topic}`).slice(20);
 
       // Do not announce if we hit our max peers cap
-      if (Object.keys(this.peerMap).length < maxPeers) {
+      if (Object.keys(this.peerMap).length < this.tooldb.options.maxPeers) {
         this.announceAll();
       } else {
         if (this.offerPool) {
