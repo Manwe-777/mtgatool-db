@@ -12,15 +12,20 @@ let Bob: ToolDb | undefined;
 
 beforeAll((done) => {
   nodeA = new ToolDb({
+    useWebrtc: false,
+    serveSocket: true,
     server: true,
     host: "127.0.0.1",
     port: 9000,
     storageName: "test-node-a",
+    debug: true,
     storageAdapter: leveldb,
   });
   nodeA.onConnect = () => checkIfOk(nodeA.options.id);
 
   nodeB = new ToolDb({
+    useWebrtc: false,
+    serveSocket: true,
     server: true,
     // Node A is going to be our "bootstrap" node
     peers: [{ host: "localhost", port: 9000 }],
@@ -32,14 +37,17 @@ beforeAll((done) => {
   nodeB.onConnect = () => checkIfOk(nodeB.options.id);
 
   Alice = new ToolDb({
+    useWebrtc: false,
     server: false,
     peers: [{ host: "localhost", port: 9000 }],
     storageName: "test-alice",
+    debug: true,
     storageAdapter: leveldb,
   });
   Alice.onConnect = () => checkIfOk(Alice.options.id);
 
   Bob = new ToolDb({
+    useWebrtc: false,
     server: false,
     peers: [{ host: "localhost", port: 8000 }],
     storageName: "test-bob",
@@ -60,8 +68,8 @@ beforeAll((done) => {
 });
 
 afterAll((done) => {
-  nodeA.network.server.close();
-  nodeB.network.server.close();
+  if (nodeA?.network.server) nodeA.network.server.close();
+  if (nodeB?.network.server) nodeB.network.server.close();
 
   setTimeout(done, 1000);
 });

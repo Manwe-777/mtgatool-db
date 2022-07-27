@@ -36,13 +36,15 @@ interface ConnectionAwaiting {
   id: string;
 }
 
-export default class toolDbNetwork extends ToolDbNetworkAdapter {
+export default class ToolDbNetwork extends ToolDbNetworkAdapter {
   private wnd =
     typeof window === "undefined" ? undefined : (window as any | undefined);
 
   private wss = this.wnd
     ? this.wnd.WebSocket || this.wnd.webkitWebSocket || this.wnd.mozWebSocket
     : WebSocket;
+
+  private server: WebSocket.Server | null = null;
 
   private sockets: Record<string, WebSocket | null> = {};
 
@@ -422,7 +424,7 @@ export default class toolDbNetwork extends ToolDbNetworkAdapter {
   constructor(db: ToolDb) {
     super(db);
 
-    if (typeof window !== "undefined") {
+    if (this.tooldb.options.useWebrtc) {
       this.announceInterval = setInterval(
         () => this.announceAll(),
         announceSecs * 1000
@@ -462,13 +464,13 @@ export default class toolDbNetwork extends ToolDbNetworkAdapter {
 
     // Basically the same as the WS network adapter
     // Only for Node!
-    if (this.tooldb.options.server && typeof window === "undefined") {
-      const server = new WebSocket.Server({
+    if (this.tooldb.options.server && this.tooldb.options.serveSocket) {
+      this.server = new WebSocket.Server({
         port: this.tooldb.options.port,
         server: this.tooldb.options.httpServer,
       });
 
-      server.on("connection", (socket: WebSocket) => {
+      this.server.on("connection", (socket: WebSocket) => {
         let clientId: string | null = null;
 
         socket.on("close", () => {
@@ -496,10 +498,6 @@ export default class toolDbNetwork extends ToolDbNetworkAdapter {
         });
       });
     }
-  }
-
-  public close(clientId: string): void {
-    //
   }
 
   /**

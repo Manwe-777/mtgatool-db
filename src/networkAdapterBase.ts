@@ -13,11 +13,13 @@ export default class ToolDbNetworkAdapter {
   constructor(db: ToolDb) {
     this._tooldb = db;
 
-    if (this.tooldb.options.server) {
-      this.getMeAsPeer().then((meAsPeer) => {
-        this.tooldb.serverPeers.push(meAsPeer);
-      });
-    }
+    db.on("init", () => {
+      if (this.tooldb.options.server) {
+        this.getMeAsPeer().then((meAsPeer) => {
+          this.tooldb.serverPeers.push(meAsPeer);
+        });
+      }
+    });
   }
 
   get clientToSend() {
@@ -34,7 +36,6 @@ export default class ToolDbNetworkAdapter {
 
   public getMeAsPeer() {
     const timestamp = new Date().getTime();
-
     return getPeerSignature(
       this.tooldb.options.privateKey as any,
       this.tooldb.options.topic,

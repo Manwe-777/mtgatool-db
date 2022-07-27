@@ -268,6 +268,8 @@ export default class ToolDb extends EventEmitter {
     topic: "tool-db-default",
     publicKey: undefined,
     privateKey: undefined,
+    useWebrtc: true,
+    serveSocket: false,
   };
 
   get options() {

@@ -35,11 +35,12 @@ beforeAll((done) => {
     storageAdapter: leveldb,
     storageName: "test-verify-a",
   });
+
   done();
 });
 
 afterAll((done) => {
-  ClientA.network.server.close();
+  if (ClientA?.network.server) ClientA.network.server.close();
   setTimeout(done, 1000);
 });
 

@@ -53,6 +53,8 @@ export interface ToolDbOptions {
   topic: string;
   publicKey: CryptoKey | undefined;
   privateKey: CryptoKey | undefined;
+  useWebrtc: boolean;
+  serveSocket: boolean;
 }
 
 export interface ParsedKeys {

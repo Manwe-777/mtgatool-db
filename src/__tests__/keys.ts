@@ -32,12 +32,13 @@ beforeAll((done) => {
     storageName: "test-keys-b",
   });
   ClientB.anonSignIn();
+
   done();
 });
 
 afterAll((done) => {
-  ClientA.network.server.close();
-  ClientB.network.server.close();
+  if (ClientA?.network.server) ClientA.network.server.close();
+  if (ClientB?.network.server) ClientB.network.server.close();
   setTimeout(done, 1000);
 });
 
