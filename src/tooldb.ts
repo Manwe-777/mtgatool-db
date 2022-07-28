@@ -265,7 +265,7 @@ export default class ToolDb extends EventEmitter {
     storageName: "tooldb",
     storageAdapter: typeof window === "undefined" ? leveldb : indexedb,
     id: "",
-    topic: "tool-db-default",
+    topic: "mtgatool-db-main",
     publicKey: undefined,
     privateKey: undefined,
     useWebrtc: true,
