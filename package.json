@@ -1,8 +1,8 @@
 {
   "name": "mtgatool-db",
-  "version": "1.4.5",
+  "version": "1.5.0",
   "private": false,
-  "description": "A decentralized database model for federated p2p networks.",
+  "description": "",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
