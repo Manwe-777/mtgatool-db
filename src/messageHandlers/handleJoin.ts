@@ -18,7 +18,7 @@ export default function handleJoin(
         message.peer.port
       ) {
         // Add this peer to the list
-        this.peers[message.peer.pubkey] = message.peer;
+        this.peers[message.peer.pubkey.slice(-20)] = message.peer;
 
         // Reply with our servers list
         this.network.sendToClientId(remotePeerId, {

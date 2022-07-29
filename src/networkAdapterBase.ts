@@ -102,7 +102,7 @@ export default class ToolDbNetworkAdapter {
     // This is not a good idea to use on all adapters, so it should be replaced
     // if its causing issues. The only reason we use the last 20 chars is to
     // muse the same peer address as the webrtc adapter.
-    return (this.tooldb.options.id || "").slice(-20);
+    return this.tooldb.options.id || "";
   }
 
   public onClientDisconnect(clientId: string) {

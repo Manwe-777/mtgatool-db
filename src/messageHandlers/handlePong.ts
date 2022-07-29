@@ -16,7 +16,7 @@ export default function handlePong(
       verifyPeer(peer).then((verified) => {
         // Verify integrity and topic
         if (verified && peer.topic === this.options.topic) {
-          this.peers[peer.pubkey] = peer;
+          this.peers[peer.pubkey.slice(-20)] = peer;
           // Add this peer to our list of peers
           const filteredPeers = this.serverPeers.filter(
             (p) => p.pubkey === peer.pubkey

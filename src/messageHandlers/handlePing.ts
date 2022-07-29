@@ -14,7 +14,7 @@ export default function handlePing(
   verifyPeer(message.peer).then((verified) => {
     // Verify integrity and topic
     if (verified && message.peer.topic === this.options.topic) {
-      this.peers[message.peer.pubkey] = message.peer;
+      this.peers[message.peer.pubkey.slice(-20)] = message.peer;
       // Add this peer to our list of peers
       const filteredPeers = this.serverPeers.filter(
         (p) => p.pubkey === message.peer.pubkey
