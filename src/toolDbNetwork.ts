@@ -264,7 +264,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
         action: "announce",
         info_hash: infoHash,
         numwant: offerPoolSize,
-        peer_id: this.getClientAddress(),
+        peer_id: this.getClientAddress().slice(-20),
         offers: await Promise.all(
           Object.entries(this.offerPool).map(async ([id, { offerP }]) => {
             const offer = await offerP;
@@ -337,7 +337,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       return;
     }
 
-    if (val.peer_id && val.peer_id === this.getClientAddress()) {
+    if (val.peer_id && val.peer_id === this.getClientAddress().slice(-20)) {
       // this.tooldb.logger("Peer ids mismatch", val.peer_id, selfId);
       return;
     }
@@ -367,7 +367,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
             answer,
             action: "announce",
             info_hash: this.infoHash,
-            peer_id: this.getClientAddress(),
+            peer_id: this.getClientAddress().slice(-20),
             to_peer_id: val.peer_id,
             offer_id: val.offer_id,
           })
