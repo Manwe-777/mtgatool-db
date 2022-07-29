@@ -18,7 +18,6 @@ beforeAll((done) => {
     host: "127.0.0.1",
     port: 9000,
     storageName: "test-node-a",
-    debug: true,
     storageAdapter: leveldb,
   });
   nodeA.onConnect = () => checkIfOk(nodeA.options.id);
@@ -41,7 +40,6 @@ beforeAll((done) => {
     server: false,
     peers: [{ host: "localhost", port: 9000 }],
     storageName: "test-alice",
-    debug: true,
     storageAdapter: leveldb,
   });
   Alice.onConnect = () => checkIfOk(Alice.options.id);

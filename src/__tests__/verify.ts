@@ -318,3 +318,19 @@ it("Can verify peers", async () => {
 
   expect(verified).toBeTruthy();
 });
+
+const peerTest = {
+  topic: "mtgatool-db-main",
+  timestamp: 1659067409548,
+  host: "127.0.0.1",
+  port: 8080,
+  pubkey:
+    "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEGpasoiwmpN83hMJmmX9F1vcOOSOebguYwWCOSJbVJYhkUp5MSnprkn9vwPHZZdNJGXH+9jsafxB7utyRGjr5Ew==",
+  sig: "acKlesKWwppyw6poRsKkDFZFwq7CnV1IMMO9H8KDw482wqZGCMKxwqkNwqDDmMOlEw7DpkXCjHc9RCECL8O3worDljBMHS3ClsO4TCzDrXk8w5/DujnCnsKKw7Qk",
+};
+
+it("Can verify peers", async () => {
+  const verified = await verifyPeer(peerTest).catch(console.error);
+
+  expect(verified).toBeTruthy();
+});
