@@ -108,6 +108,7 @@ export default class ToolDbNetworkAdapter {
   public onClientDisconnect(clientId: string) {
     delete this._clientToSend[clientId];
     delete this._clientIsServer[clientId];
+    delete this._isClientConnected[clientId];
   }
 
   /**
@@ -168,7 +169,11 @@ export default class ToolDbNetworkAdapter {
 
     filteredConns.forEach((clientId) => {
       if ((crossServerOnly && this.isServer(clientId)) || !crossServerOnly) {
-        this.tooldb.logger(to, "Sent out to:", clientId);
+        this.tooldb.logger(
+          to.map((k) => k.slice(-20)),
+          "Sent out to (all):",
+          clientId.slice(-20)
+        );
 
         if (msg.type === "put" || msg.type === "crdtPut") {
           if (!this.tooldb.processedOutHashes[clientId].includes(msg.h)) {
@@ -194,6 +199,12 @@ export default class ToolDbNetworkAdapter {
   public sendToClientId(clientId: string, msg: ToolDbMessage) {
     const to = uniq([...msg.to, this.getClientAddress()]);
     const finalMessage = JSON.stringify({ ...msg, to });
+
+    this.tooldb.logger(
+      to.map((k) => k.slice(-20)),
+      "Sent out to (single):",
+      clientId.slice(-20)
+    );
 
     if (msg.type === "put" || msg.type === "crdtPut") {
       if (

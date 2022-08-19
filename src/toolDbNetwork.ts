@@ -181,7 +181,9 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
     peer.on("error", (err: any) => this.onDisconnect(id, err));
 
     this.craftPingMessage().then((msg) => {
-      peer.send(msg);
+      if (peer) {
+        peer.send(msg);
+      }
     });
   };
 
@@ -203,6 +205,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
     Object.entries(this.offerPool).forEach(([id, { peer }]) => {
       if (!this.handledOffers[id] && !this._connectedPeers[id]) {
         // this.tooldb.logger("closed peer " + id);
+        this.onClientDisconnect(id);
         peer.end();
         peer.destroy();
         delete this.peerMap[id];
