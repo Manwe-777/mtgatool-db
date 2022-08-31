@@ -5,6 +5,8 @@ export default function handleQuery(
   message: QueryMessage,
   remotePeerId: string
 ) {
+  if (message.key.length < 3) return;
+
   this.store.query(message.key).then((keys) => {
     this.network.sendToClientId(remotePeerId, {
       type: "queryAck",

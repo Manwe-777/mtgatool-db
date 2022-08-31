@@ -19,6 +19,21 @@ export default function toolDbQueryKeys(
       reject(new Error("You are not authorized yet!"));
       return;
     }
+
+    if (!userNamespaced && key.length < 3) {
+      reject(new Error("Query key is too short"));
+      return;
+    }
+
+    // if (!userNamespaced && key.startsWith(":")) {
+    //   reject(
+    //     new Error(
+    //       "User namespace queries should use the userNamespaced argument"
+    //     )
+    //   );
+    //   return;
+    // }
+
     const finalKey = userNamespaced ? `:${this.user?.pubKey}.${key}` : key;
     this.logger("QUERY > " + finalKey);
 
