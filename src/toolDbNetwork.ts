@@ -61,7 +61,11 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
   private onDisconnect = (id: string, err: any) => {
     this.tooldb.logger(id, err);
     if (this._connectedPeers[id]) delete this._connectedPeers[id];
-    if (this.peerMap[id]) delete this.peerMap[id];
+    if (this.peerMap[id]) {
+      this.peerMap[id].end();
+      this.peerMap[id].destroy();
+      delete this.peerMap[id];
+    }
     if (Object.keys(this.peerMap).length === 0) {
       this.tooldb.isConnected = false;
       this.tooldb.onDisconnect();
@@ -78,7 +82,12 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
           peer.destroy();
         }
         if (this._connectedPeers[id]) delete this._connectedPeers[id];
-        delete this.peerMap[id];
+
+        if (this.peerMap[id]) {
+          this.peerMap[id].end();
+          this.peerMap[id].destroy();
+          delete this.peerMap[id];
+        }
       }
     });
 
@@ -206,9 +215,11 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       if (!this.handledOffers[id] && !this._connectedPeers[id]) {
         // this.tooldb.logger("closed peer " + id);
         this.onClientDisconnect(id);
-        peer.end();
-        peer.destroy();
-        delete this.peerMap[id];
+        if (this.peerMap[id]) {
+          peer.end();
+          peer.destroy();
+          delete this.peerMap[id];
+        }
         if (Object.keys(this.peerMap).length === 0) {
           this.tooldb.isConnected = false;
           this.tooldb.onDisconnect();
@@ -297,11 +308,70 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       // this.tooldb.logger(" ok tracker " + url);
       // this.tooldb.logger("socket", url, socket);
       if (socket && socket.readyState === 1) {
-        // this.tooldb.logger("announce to " + url);
+        // this.tooldb.logger("announce to " + this.infoHash);
         this.announce(socket, this.infoHash);
       }
     });
   };
+
+  public codeToHash(code: string) {
+    return sha1(code).slice(-20);
+  }
+
+  private originalTopic: string | null = null;
+
+  /**
+   * Begin announcing this node privately using a randomly generated code.
+   * @returns Random, temporary 6 digit code to share with others.
+   */
+  public announcePrivately() {
+    if (this.originalTopic === null) {
+      this.originalTopic = this.tooldb.options.topic;
+    }
+    const randomCode = textRandom(6);
+    const oldHash = this.infoHash;
+    this.tooldb.options.maxPeers = 10;
+    // Revert infohash after 20 seconds
+    setTimeout(() => {
+      this.infoHash = oldHash;
+      if (this.originalTopic) {
+        this.tooldb.options.topic = this.originalTopic;
+        this.tooldb.options.maxPeers = 5;
+      }
+    }, 20000);
+
+    // Convert the random code to an infohash
+    this.infoHash = this.codeToHash(randomCode);
+    this.tooldb.options.topic = this.infoHash;
+
+    this.announceAll();
+    return randomCode;
+  }
+
+  /*
+   * Connect to a specific node privately
+   * The node must announce itself before we can connect to it.
+   * If we have a code we need to convert it first via this.codeToHash()
+   */
+  public connectPrivately(infohash: string) {
+    if (this.originalTopic === null) {
+      this.originalTopic = this.tooldb.options.topic;
+    }
+    const oldHash = this.infoHash;
+    this.tooldb.options.maxPeers = 10;
+    // Revert infohash after 20 seconds
+    setTimeout(() => {
+      this.infoHash = oldHash;
+      if (this.originalTopic) {
+        this.tooldb.options.topic = this.originalTopic;
+        this.tooldb.options.maxPeers = 5;
+      }
+    }, 20000);
+
+    this.infoHash = infohash;
+    this.tooldb.options.topic = infohash;
+    this.announceAll();
+  }
 
   /**
    * Handle the tracker messages
@@ -364,7 +434,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       this.handledOffers[val.offer_id] = true;
 
       const peer = this.initPeer(false, false, {});
-      peer.once("signal", (answer: any) =>
+      peer.once("signal", (answer: Peer.SignalData) =>
         socket.send(
           JSON.stringify({
             answer,
