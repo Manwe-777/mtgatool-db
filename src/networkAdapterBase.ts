@@ -36,22 +36,24 @@ export default class ToolDbNetworkAdapter {
 
   public getMeAsPeer() {
     const timestamp = new Date().getTime();
-    return getPeerSignature(
-      this.tooldb.options.privateKey as any,
-      this.tooldb.options.topic,
-      timestamp,
-      this.tooldb.options.host,
-      this.tooldb.options.port
-    ).then((signature) => {
-      return {
-        topic: this.tooldb.options.topic,
-        timestamp: timestamp,
-        host: this.tooldb.options.host,
-        port: this.tooldb.options.port,
-        pubkey: this.tooldb.options.id || "",
-        sig: signature,
-      } as Peer;
-    });
+    if (this.tooldb.options.defaultKeys === undefined) return Promise.reject();
+    else
+      return getPeerSignature(
+        this.tooldb.options.defaultKeys.privateKey as CryptoKey,
+        this.tooldb.options.topic,
+        timestamp,
+        this.tooldb.options.host,
+        this.tooldb.options.port
+      ).then((signature) => {
+        return {
+          topic: this.tooldb.options.topic,
+          timestamp: timestamp,
+          host: this.tooldb.options.host,
+          port: this.tooldb.options.port,
+          pubkey: this.tooldb.getPubKey(),
+          sig: signature,
+        } as Peer;
+      });
   }
 
   /**
@@ -102,7 +104,7 @@ export default class ToolDbNetworkAdapter {
     // This is not a good idea to use on all adapters, so it should be replaced
     // if its causing issues. The only reason we use the last 20 chars is to
     // muse the same peer address as the webrtc adapter.
-    return this.tooldb.options.id || "";
+    return this.tooldb.pubKey;
   }
 
   public onClientDisconnect(clientId: string) {

@@ -4,9 +4,9 @@ import EventEmitter from "events";
 import {
   BaseMessage,
   CrdtMessage,
-  encodeKeyString,
   exportKey,
   generateKeyPair,
+  loadKeysComb,
   PutMessage,
   ToolDbMessage,
   VerificationData,
@@ -24,6 +24,7 @@ import toolDbCrdtGet from "./toolDbCrdtGet";
 import toolDbCrdtPut from "./toolDbCrdtPut";
 import toolDbGetPubKey from "./toolDbGetPubKey";
 import toolDbAnonSignIn from "./toolDbAnonSignIn";
+import toolDbServerSync from "./toolDbServerSync";
 import toolDbClientOnMessage from "./toolDbClientOnMessage";
 import toolDbVerificationWrapper from "./toolDbVerificationWrapper";
 
@@ -47,6 +48,10 @@ import handleCrdtPut from "./messageHandlers/handleCrdtPut";
 import handleSubscribe from "./messageHandlers/handleSubscribe";
 
 import { Peer, ToolDbOptions } from "./types/tooldb";
+import arrayBufferToHex from "./utils/arrayBufferToHex";
+
+export const KEY_PREFIX =
+  "3059301306072a8648ce3d020106082a8648ce3d03010703420004";
 
 export interface Listener {
   key: string;
@@ -70,6 +75,8 @@ export default class ToolDb extends EventEmitter {
 
   private _documents: Record<string, FreezeObject<any>> = {};
 
+  private _pubKey = "";
+
   public clientOnMessage = toolDbClientOnMessage;
 
   public verifyMessage = verifyMessage;
@@ -80,6 +87,10 @@ export default class ToolDb extends EventEmitter {
 
   get subscriptions() {
     return this._subscriptions;
+  }
+
+  get pubKey() {
+    return this._pubKey;
   }
 
   private _processedIds: Record<string, string[]> = {};
@@ -131,6 +142,8 @@ export default class ToolDb extends EventEmitter {
   public queryKeys = toolDbQueryKeys;
 
   public getPubKey = toolDbGetPubKey;
+
+  public serverSync = toolDbServerSync;
 
   public signIn = toolDbSignIn;
 
@@ -251,7 +264,6 @@ export default class ToolDb extends EventEmitter {
 
   private _options: ToolDbOptions = {
     db: "tooldb",
-    peers: [],
     maxRetries: 5,
     triggerDebouce: 100,
     wait: 2000,
@@ -264,13 +276,12 @@ export default class ToolDb extends EventEmitter {
     networkAdapter: toolDbNetwork,
     storageName: "tooldb",
     storageAdapter: typeof window === "undefined" ? leveldb : indexedb,
-    id: "",
-    topic: "mtgatool-db-main",
-    publicKey: undefined,
-    privateKey: undefined,
-    useWebrtc: true,
+    topic: "",
+    defaultKeys: undefined,
     serveSocket: false,
     maxPeers: 4,
+    ssl: false,
+    serverName: "default-server",
   };
 
   get options() {
@@ -298,22 +309,30 @@ export default class ToolDb extends EventEmitter {
 
     this._options = { ...this.options, ...options };
 
-    if (this._options.id === "") {
-      generateKeyPair("ECDSA", false)
-        .then((key) => {
-          if (key.publicKey && key.privateKey) {
-            this._options.publicKey = key.publicKey;
-            this._options.privateKey = key.privateKey;
+    if (!this._options.defaultKeys) {
+      generateKeyPair("ECDSA", false).then((key) => {
+        if (key.publicKey && key.privateKey) {
+          this._options.defaultKeys = key;
 
-            exportKey("spki", key.publicKey).then((skpub) => {
-              this._options.id = encodeKeyString(skpub as ArrayBuffer);
-              this.emit("init", this._options.id);
-            });
-          }
-        })
-        .catch(console.warn);
+          exportKey("spki", key.publicKey).then((skpub) => {
+            this._pubKey = arrayBufferToHex(skpub as ArrayBuffer).slice(
+              KEY_PREFIX.length
+            );
+
+            this.emit("init", this._pubKey);
+          });
+        }
+      });
     } else {
-      this.emit("init", this._options.id);
+      exportKey("spki", this._options.defaultKeys.publicKey as CryptoKey).then(
+        (skpub) => {
+          this._pubKey = arrayBufferToHex(skpub as ArrayBuffer).slice(
+            KEY_PREFIX.length
+          );
+
+          this.emit("init", this._pubKey);
+        }
+      );
     }
 
     // These could be made to be customizable by setting the variables as public

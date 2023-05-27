@@ -37,23 +37,21 @@ export type ToolDbMessageHandler = (
 export interface ToolDbOptions {
   db: string;
   debug: boolean;
-  peers: { host: string; port: number }[];
   maxRetries: number;
   triggerDebouce: number;
   wait: number;
   pow: number;
+  ssl: boolean;
   server: boolean;
+  serverName: string;
   httpServer: HTTPServer | HTTPSServer | undefined;
   host: string;
   port: number;
   storageName: string;
   networkAdapter: typeof ToolDbNetworkAdapter;
   storageAdapter: ToolDbStorageAdapter;
-  id: string;
   topic: string;
-  publicKey: CryptoKey | undefined;
-  privateKey: CryptoKey | undefined;
-  useWebrtc: boolean;
+  defaultKeys: CryptoKeyPair | undefined;
   serveSocket: boolean;
   maxPeers: number;
 }

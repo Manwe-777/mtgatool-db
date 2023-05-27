@@ -19,7 +19,7 @@ export default function handleCrdtGet(
     } else {
       this.logger("Local key not found, relay", JSON.stringify(message));
 
-      this.network.sendToAll(message, false);
+      this.network.sendToAll(message, true);
     }
   });
 }

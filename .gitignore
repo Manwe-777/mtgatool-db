@@ -9,3 +9,5 @@ test-keys-a
 test-keys-b
 test-verify-a
 bundle.js
+keys.json
+tooldb

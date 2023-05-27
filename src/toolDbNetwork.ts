@@ -1,40 +1,55 @@
-import Peer from "simple-peer";
 import WebSocket from "ws";
 
-import { ToolDb, sha1, textRandom, ToolDbNetworkAdapter } from ".";
+import {
+  ToolDb,
+  sha1,
+  textRandom,
+  ToolDbNetworkAdapter,
+  ToolDbMessage,
+  signData,
+} from ".";
+import arrayBufferToHex from "./utils/arrayBufferToHex";
 
 type SocketMessageFn = (socket: WebSocket, e: { data: any }) => void;
 
-type IOffers = Record<
-  string,
-  {
-    peer: Peer.Instance;
-    offerP: Promise<Peer.Instance>;
-  }
->;
-
-const offerPoolSize = 5;
-
-const announceSecs = 30;
-const maxAnnounceSecs = 86400;
-
-const defaultTrackerUrls = [
-  "wss://tooldb-tracker.herokuapp.com/",
-  "wss://tracker.openwebtorrent.com",
-  "wss://tracker.btorrent.xyz",
-  "wss://tracker.webtorrent.io",
-  "wss://tracker.files.fm:7073/announce",
-  "wss://spacetradersapi-chatbox.herokuapp.com:443/announce",
-];
+interface ServerPeerData {
+  host: string;
+  port: number;
+  ssl: boolean;
+  name: string;
+  pubKey: string;
+  signature: string;
+}
 
 interface ConnectionAwaiting {
   socket: WebSocket;
   tries: number;
   defer: null | number;
-  host: string;
-  port: number;
-  id: string;
+  server: ServerPeerData;
 }
+
+interface MessageQueue {
+  message: ToolDbMessage;
+  to: string[];
+}
+
+function makeDelay(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+const announceSecs = 30;
+
+const defaultTrackerUrls = [
+  "wss://tooldb-tracker.herokuapp.com/",
+  "wss://tracker.fastcast.nz",
+  "wss://tracker.openwebtorrent.com:443/announce",
+  "wss://tracker.btorrent.xyz",
+  "wss://tracker.webtorrent.io",
+  "wss://tracker.files.fm:7073/announce",
+  "wss://spacetradersapi-chatbox.herokuapp.com:443/announce",
+];
 
 export default class ToolDbNetwork extends ToolDbNetworkAdapter {
   private wnd =
@@ -44,203 +59,57 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
     ? this.wnd.WebSocket || this.wnd.webkitWebSocket || this.wnd.mozWebSocket
     : WebSocket;
 
-  private server: WebSocket.Server | null = null;
-
   private sockets: Record<string, WebSocket | null> = {};
 
-  private socketListeners: Record<string, Record<string, SocketMessageFn>> = {};
+  private socketListeners: Record<string, SocketMessageFn> = {};
 
-  private peerMap: Record<string, Peer.Instance> = {};
+  private connectedServers: Record<string, WebSocket> = {};
 
-  private _connectedPeers: Record<string, boolean> = {};
+  public serverPeerData: Record<string, ServerPeerData> = {};
 
-  get connectedPeers() {
-    return this._connectedPeers;
-  }
+  private serversFinding: string[] = [];
 
-  private onDisconnect = (id: string, err: any) => {
-    this.tooldb.logger(id, err);
-    if (this._connectedPeers[id]) delete this._connectedPeers[id];
-    if (this.peerMap[id]) {
-      this.peerMap[id].end();
-      this.peerMap[id].destroy();
-      delete this.peerMap[id];
-    }
-    if (Object.keys(this.peerMap).length === 0) {
-      this.tooldb.isConnected = false;
-      this.tooldb.onDisconnect();
-    }
-  };
-
-  private peersCheck() {
-    Object.keys(this.clientToSend).forEach((id) => {
-      if (!this.isConnected(id)) {
-        this.tooldb.logger("disconnected from " + id);
-        this.onClientDisconnect(id);
-        const peer = this.peerMap[id];
-        if (peer) {
-          peer.destroy();
-        }
-        if (this._connectedPeers[id]) delete this._connectedPeers[id];
-
-        if (this.peerMap[id]) {
-          this.peerMap[id].end();
-          this.peerMap[id].destroy();
-          delete this.peerMap[id];
-        }
-      }
-    });
-
-    if (Object.keys(this.peerMap).length === 0) {
-      this.tooldb.isConnected = false;
-      this.tooldb.onDisconnect();
-    }
-  }
-
-  private announceInterval;
-
-  /**
-   * Initialize webrtc peer
-   */
-  private initPeer = (
-    initiator: boolean,
-    trickle: boolean,
-    rtcConfig: any // RTCConfiguration
-  ) => {
-    const peer: Peer.Instance = new Peer({
-      wrtc: (this.tooldb.options as any).wrtc,
-      initiator,
-      trickle,
-      config: rtcConfig,
-    });
-    return peer;
-  };
-
-  private handledOffers: Record<string, boolean> = {};
-
-  private offerPool: Record<
-    string,
-    {
-      peer: Peer.Instance;
-      offerP: Promise<Peer.Instance>;
-    }
-  > = {};
+  public announceInterval: any;
 
   private trackerUrls = defaultTrackerUrls; // .slice(0, 2);
 
-  private infoHash = "";
+  private handledOffers: Record<string, boolean> = {};
 
-  /**
-   * Make connection offers (sdp) to send to the tracker
-   */
-  private makeOffers = () => {
-    const offers: IOffers = {};
+  private _awaitingConnections: ConnectionAwaiting[] = [];
 
-    new Array(offerPoolSize).fill(0).forEach(() => {
-      try {
-        const peer = this.initPeer(true, false, {});
-        const oid = textRandom(20);
-        offers[oid] = {
-          peer,
-          offerP: new Promise((res) => peer.once("signal", res)),
-        };
-      } catch (e) {
-        this.tooldb.logger(e);
-      }
+  // We need to create a queue to handle a situation when we need
+  // to contact a server, but we havent connected to it yet.
+  private _messageQueue: MessageQueue[] = [];
+
+  get messageQueue() {
+    return this._messageQueue;
+  }
+
+  public pushToMessageQueue(msg: ToolDbMessage, to: string[]) {
+    this._messageQueue.push({
+      message: msg,
+      to,
     });
-    return offers;
-  };
+  }
 
-  /**
-   * When we sucessfully connect to a webrtc peer
-   */
-  private onPeerConnect = (peer: Peer.Instance, id: string) => {
-    if (this.peerMap[id]) {
-      this.peerMap[id].end();
-      this.peerMap[id].destroy();
-      delete this.peerMap[id];
+  private removeFromAwaiting = (pubkey: string) => {
+    const index = this._awaitingConnections.findIndex(
+      (c) => c.server.pubKey === pubkey
+    );
+    if (index !== -1) {
+      this._awaitingConnections.slice(index, 1);
     }
-
-    let clientId: string | null = null;
-
-    // this.tooldb.logger("onPeerConnect", id);
-
-    const onData = (data: Uint8Array) => {
-      const str = new TextDecoder().decode(data);
-
-      this.onClientMessage(str, clientId || "", (id) => {
-        clientId = id;
-        // Set this socket's functions on the adapter
-        this.isClientConnected[id] = () => {
-          return peer.connected;
-        };
-
-        this.clientToSend[id] = (_msg: string) => {
-          peer.send(_msg);
-        };
-      });
-    };
-
-    this.peerMap[id] = peer;
-
-    peer.on("data", onData);
-
-    peer.on("close", (err: any) => this.onDisconnect(id, err));
-
-    peer.on("error", (err: any) => this.onDisconnect(id, err));
-
-    this.craftPingMessage().then((msg) => {
-      if (peer) {
-        peer.send(msg);
-      }
-    });
-  };
-
-  /**
-   * Handle the webrtc peer connection
-   */
-  private onConnect = (peer: Peer.Instance, id: string, offer_id?: string) => {
-    this.onPeerConnect(peer, id);
-    this._connectedPeers[id] = true;
-    if (offer_id) {
-      this._connectedPeers[offer_id] = true;
-    }
-  };
-
-  /**
-   * Clean the announce offers pool
-   */
-  private cleanPool = () => {
-    Object.entries(this.offerPool).forEach(([id, { peer }]) => {
-      if (!this.handledOffers[id] && !this._connectedPeers[id]) {
-        // this.tooldb.logger("closed peer " + id);
-        this.onClientDisconnect(id);
-        if (this.peerMap[id]) {
-          peer.end();
-          peer.destroy();
-          delete this.peerMap[id];
-        }
-        if (Object.keys(this.peerMap).length === 0) {
-          this.tooldb.isConnected = false;
-          this.tooldb.onDisconnect();
-        }
-      }
-    });
-
-    this.handledOffers = {} as Record<string, boolean>;
   };
 
   /**
    * Makes a websocket connection to a tracker
    */
-  private makeSocket = (url: string, info_hash: string) => {
+  private makeSocket = (url: string) => {
     return new Promise<WebSocket | null>((resolve) => {
       if (!this.sockets[url]) {
-        this.socketListeners[url] = {
-          ...this.socketListeners[url],
-          // eslint-disable-next-line no-use-before-define
-          [info_hash]: this.onSocketMessage,
-        };
+        this.tooldb.logger("begin tracker connection " + url);
+
+        this.socketListeners[url] = this.onSocketMessage;
 
         try {
           const socket = new this.wss(url);
@@ -250,14 +119,14 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
             socks[url] = this;
             resolve(this);
           };
-          socket.onmessage = (e: any) =>
-            Object.values(this.socketListeners[url]).forEach((f) =>
-              f(socket, e)
-            );
+          socket.onmessage = (e: any) => this.socketListeners[url](socket, e);
+
           // eslint-disable-next-line func-names
           socket.onerror = () => {
-            const index = this.trackerUrls.indexOf(url);
-            this.trackerUrls.splice(index, 1);
+            // removing trackers just because the error event seems like a mistake
+            // trackers can get disconnected and be absolutely healthy.
+            // const index = this.trackerUrls.indexOf(url);
+            // this.trackerUrls.splice(index, 1);
             resolve(null);
           };
         } catch (e) {
@@ -272,45 +141,75 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
   /**
    * Announce ourselves to a tracker (send "announce")
    */
-  private announce = async (socket: WebSocket, infoHash: string) =>
-    socket.send(
-      JSON.stringify({
-        action: "announce",
-        info_hash: infoHash,
-        numwant: offerPoolSize,
-        peer_id: this.getClientAddress().slice(-20),
-        offers: await Promise.all(
-          Object.entries(this.offerPool).map(async ([id, { offerP }]) => {
-            const offer = await offerP;
-            // this.tooldb.logger(`Created offer id ${id}`);
-            return {
-              offer_id: id,
-              offer,
-            };
-          })
-        ),
-      })
-    );
+  private announce = async (socket: WebSocket, infoHash: string) => {
+    if (
+      this.tooldb.options.server &&
+      this.tooldb.options.defaultKeys?.privateKey
+    ) {
+      signData(
+        this.tooldb.options.host,
+        this.tooldb.options.defaultKeys?.privateKey
+      ).then((signature) => {
+        const offer = {
+          host: this.tooldb.options.host,
+          port: this.tooldb.options.port,
+          ssl: this.tooldb.options.ssl,
+          name: this.tooldb.options.serverName,
+          pubKey: this.tooldb.getPubKey(),
+          signature: arrayBufferToHex(signature),
+        } as ServerPeerData;
+
+        const offers = [0, 1, 2, 3, 4].map((n) => {
+          return {
+            offer: { sdp: JSON.stringify(offer), type: "offer" },
+            offer_id: textRandom(20),
+          };
+        });
+
+        const message = {
+          action: "announce",
+          info_hash: infoHash,
+          peer_id: this.getClientAddress().slice(-20),
+          numwant: 1,
+          offers,
+        };
+        socket.send(JSON.stringify(message));
+      });
+    } else {
+      socket.send(
+        JSON.stringify({
+          action: "announce",
+          info_hash: infoHash,
+          peer_id: this.getClientAddress().slice(-20),
+          numwant: 1,
+        })
+      );
+    }
+  };
 
   /**
    * Announce ourselves to all trackers
    */
   private announceAll = async () => {
-    if (this.offerPool) {
-      this.cleanPool();
-    }
+    const infoHash = this.codeToHash(this.tooldb.getPubKey());
 
-    this.offerPool = this.makeOffers();
+    this.tooldb.logger(`announce all start`);
+    this.tooldb.logger(this.trackerUrls);
+    const delayPerTracker = (announceSecs * 1000) / this.trackerUrls.length;
 
-    this.trackerUrls.forEach(async (url: string) => {
-      // this.tooldb.logger("begin tracker connection " + url);
-      const socket = await this.makeSocket(url, this.infoHash);
-      // this.tooldb.logger(" ok tracker " + url);
-      // this.tooldb.logger("socket", url, socket);
-      if (socket && socket.readyState === 1) {
-        // this.tooldb.logger("announce to " + this.infoHash);
-        this.announce(socket, this.infoHash);
-      }
+    this.trackerUrls.forEach(async (url: string, index) => {
+      makeDelay(delayPerTracker * index).then(async () => {
+        // this.tooldb.logger(
+        //   `announce: "${this.tooldb.options.serverName}" (${infoHash})`
+        // );
+        const socket = await this.makeSocket(url);
+        //this.tooldb.logger(" ok tracker " + url);
+        // this.tooldb.logger("socket", url, index);
+        if (socket && socket.readyState === 1) {
+          //this.tooldb.logger("announce to " + url);
+          this.announce(socket, infoHash);
+        }
+      });
     });
   };
 
@@ -318,60 +217,23 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
     return sha1(code).slice(-20);
   }
 
-  private originalTopic: string | null = null;
-
   /**
-   * Begin announcing this node privately using a randomly generated code.
-   * @returns Random, temporary 6 digit code to share with others.
+   * Announce on trackers for a server
+   * Connects to it if found
    */
-  public announcePrivately() {
-    if (this.originalTopic === null) {
-      this.originalTopic = this.tooldb.options.topic;
+  public findServer = async (serverKey: string) => {
+    if (!this.serversFinding.includes(serverKey)) {
+      this.serversFinding.push(serverKey);
+      const infoHash = this.codeToHash(serverKey);
+
+      this.trackerUrls.forEach(async (url: string) => {
+        const socket = await this.makeSocket(url);
+        if (socket && socket.readyState === 1) {
+          this.announce(socket, infoHash);
+        }
+      });
     }
-    const randomCode = textRandom(6);
-    const oldHash = this.infoHash;
-    this.tooldb.options.maxPeers = 10;
-    // Revert infohash after 20 seconds
-    setTimeout(() => {
-      this.infoHash = oldHash;
-      if (this.originalTopic) {
-        this.tooldb.options.topic = this.originalTopic;
-        this.tooldb.options.maxPeers = 5;
-      }
-    }, 20000);
-
-    // Convert the random code to an infohash
-    this.infoHash = this.codeToHash(randomCode);
-    this.tooldb.options.topic = this.infoHash;
-
-    this.announceAll();
-    return randomCode;
-  }
-
-  /*
-   * Connect to a specific node privately
-   * The node must announce itself before we can connect to it.
-   * If we have a code we need to convert it first via this.codeToHash()
-   */
-  public connectPrivately(infohash: string) {
-    if (this.originalTopic === null) {
-      this.originalTopic = this.tooldb.options.topic;
-    }
-    const oldHash = this.infoHash;
-    this.tooldb.options.maxPeers = 10;
-    // Revert infohash after 20 seconds
-    setTimeout(() => {
-      this.infoHash = oldHash;
-      if (this.originalTopic) {
-        this.tooldb.options.topic = this.originalTopic;
-        this.tooldb.options.maxPeers = 5;
-      }
-    }, 20000);
-
-    this.infoHash = infohash;
-    this.tooldb.options.topic = infohash;
-    this.announceAll();
-  }
+  };
 
   /**
    * Handle the tracker messages
@@ -385,16 +247,19 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       peer_id: string;
       "failure reason"?: string;
       interval?: number;
-      offer?: string;
+      offer?: {
+        sdp: string;
+        type: string;
+      };
       offer_id: string;
       answer?: string;
     };
 
     try {
       val = JSON.parse(e.data);
-      // this.tooldb.logger("onSocketMessage", socket.url, val);
+      this.tooldb.logger("onSocketMessage", socket.url, val);
     } catch (_e: any) {
-      // this.tooldb.logger(`${libName}: received malformed SDP JSON`);
+      this.tooldb.logger(`Received malformed JSON`, e.data);
       return;
     }
 
@@ -405,145 +270,55 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       return;
     }
 
-    if (val.info_hash !== this.infoHash) {
-      // this.tooldb.logger("Info hash mismatch");
-      return;
-    }
-
     if (val.peer_id && val.peer_id === this.getClientAddress().slice(-20)) {
       // this.tooldb.logger("Peer ids mismatch", val.peer_id, selfId);
       return;
     }
 
     if (val.offer && val.offer_id) {
-      if (this._connectedPeers[val.peer_id]) {
-        return;
-      }
-
       if (this.handledOffers[val.offer_id]) {
-        return;
-      }
-
-      if (Object.keys(this.peerMap).length >= this.tooldb.options.maxPeers) {
-        if (this.offerPool) {
-          this.cleanPool();
-        }
         return;
       }
 
       this.handledOffers[val.offer_id] = true;
 
-      const peer = this.initPeer(false, false, {});
-      peer.once("signal", (answer: Peer.SignalData) =>
-        socket.send(
-          JSON.stringify({
-            answer,
-            action: "announce",
-            info_hash: this.infoHash,
-            peer_id: this.getClientAddress().slice(-20),
-            to_peer_id: val.peer_id,
-            offer_id: val.offer_id,
-          })
-        )
-      );
+      const serverData = JSON.parse(val.offer.sdp);
 
-      peer.on("connect", () => this.onConnect(peer, val.peer_id));
-      peer.on("close", (err: any) => this.onDisconnect(val.peer_id, err));
-      peer.signal(val.offer);
+      if (this.connectedServers[serverData.pubKey] === undefined) {
+        this.tooldb.logger("Now we connect to ", serverData);
+        this.connectTo(serverData);
+      } else {
+        // we already connected, unplug all trackers/unsubscribe
+      }
+
       return;
     }
-
-    if (val.answer) {
-      if (this._connectedPeers[val.peer_id]) {
-        return;
-      }
-
-      if (this.handledOffers[val.offer_id]) {
-        return;
-      }
-
-      const offer = this.offerPool[val.offer_id];
-
-      if (offer) {
-        const { peer } = offer;
-
-        if (peer.destroyed) {
-          return;
-        }
-
-        this.handledOffers[val.offer_id] = true;
-        peer.on("connect", () => {
-          this.onConnect(peer, val.peer_id, val.offer_id);
-        });
-        peer.on("close", (err: any) => this.onDisconnect(val.peer_id, err));
-        peer.signal(val.answer);
-      }
-    }
-  };
-
-  /**
-   * Leave the tracker
-   */
-  public onLeave = async () => {
-    this.trackerUrls.forEach(
-      (url) => delete this.socketListeners[url][this.infoHash]
-    );
-    if (this.announceInterval) {
-      clearInterval(this.announceInterval);
-    }
-    this.cleanPool();
   };
 
   constructor(db: ToolDb) {
     super(db);
 
-    if (this.tooldb.options.useWebrtc) {
-      this.announceInterval = setInterval(
-        () => this.announceAll(),
-        announceSecs * 1000
-      );
-
-      setInterval(() => this.peersCheck(), 100);
-
-      // Stop announcing after maxAnnounceSecs
-      const intervalStart = new Date().getTime();
-      const checkInterval = setInterval(() => {
-        if (
-          !this.tooldb.options.server &&
-          new Date().getTime() - intervalStart > maxAnnounceSecs * 1000
-        ) {
-          clearInterval(checkInterval);
-          if (this.announceInterval) {
-            clearInterval(this.announceInterval);
-          }
-        }
-      }, 200);
-
-      this.infoHash = sha1(`tooldb:${this.tooldb.options.topic}`).slice(20);
-
-      // Do not announce if we hit our max peers cap
-      if (Object.keys(this.peerMap).length < this.tooldb.options.maxPeers) {
-        this.announceAll();
-      } else {
-        if (this.offerPool) {
-          this.cleanPool();
-        }
-      }
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const _this = this;
+    if (_this.tooldb.options.server) {
+      setTimeout(function () {
+        _this.announceInterval = setInterval(
+          _this.announceAll,
+          announceSecs * 1000
+        );
+        _this.announceAll();
+      }, 500);
     }
-
-    this.tooldb.options.peers.forEach((p) => {
-      this.connectTo(p.host, p.port);
-    });
 
     // Basically the same as the WS network adapter
     // Only for Node!
-    if (this.tooldb.options.server && this.tooldb.options.serveSocket) {
-      this.server = new WebSocket.Server({
+    if (this.tooldb.options.server && typeof window === "undefined") {
+      const server = new WebSocket.Server({
         port: this.tooldb.options.port,
         server: this.tooldb.options.httpServer,
       });
 
-      this.server.on("connection", (socket: WebSocket) => {
+      server.on("connection", (socket: WebSocket) => {
         let clientId: string | null = null;
 
         socket.on("close", () => {
@@ -574,87 +349,72 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
   }
 
   /**
-   * BEGIN OF WSS CONNECTOR
-   * This is imported from the old Websocket module and kept
-   * for direct server connections compatibility
-   */
-
-  private _wss = this.wnd
-    ? this.wnd.WebSocket || this.wnd.webkitWebSocket || this.wnd.mozWebSocket
-    : WebSocket;
-
-  private _connections: Record<
-    string,
-    {
-      tries: number;
-      defer: number | null;
-      peer: WebSocket;
-    }
-  > = {};
-
-  private _awaitingConnections: ConnectionAwaiting[] = [];
-
-  private removeFromAwaiting = (id: string) => {
-    const index = this._awaitingConnections.findIndex((c) => c.id === id);
-    if (index !== -1) {
-      this._awaitingConnections.slice(index, 1);
-    }
-  };
-
-  /**
    * Open a connection to a server
    * @param url URL of the server (including port)
    * @returns websocket
    */
-  public connectTo = (
-    host: string,
-    port: number,
-    connectionId?: string
-  ): WebSocket | undefined => {
-    this.tooldb.logger("connectTo:", host + ":" + port);
+  public connectTo = (serverPeer: ServerPeerData): WebSocket | undefined => {
+    this.tooldb.logger("connectTo:", serverPeer);
     try {
-      const wsUrl =
-        port === 443 ? "wss://" + host : "ws://" + host + ":" + port;
-      const wss = new this._wss(wsUrl);
-      const connId = connectionId || textRandom(10);
-      let clientId = "";
+      const wsUrl = serverPeer.ssl
+        ? "wss://" + serverPeer.host
+        : "ws://" + serverPeer.host + ":" + serverPeer.port;
+
+      const wss = new this.wss(wsUrl);
+      let clientId = serverPeer.pubKey;
+
+      // Unlike other network adapters, we can just use the public key
+      // to identify connections.
+      // Therefore, we dont have to wait for a pong message to
+      // initialize these internal functions
+      this.isClientConnected[serverPeer.pubKey] = () => {
+        return wss.readyState === wss.OPEN;
+      };
+
+      this.clientToSend[serverPeer.pubKey] = (_msg: string) => {
+        wss.send(_msg);
+      };
 
       const previousConnection = this._awaitingConnections.filter(
-        (c) => c.id === connectionId
+        (c) => c.server.pubKey === serverPeer.pubKey
       )[0];
-      if (connectionId && previousConnection) {
+
+      if (serverPeer.pubKey && previousConnection) {
         previousConnection.socket = wss;
       } else {
         this._awaitingConnections.push({
-          id: connId,
           socket: wss,
           tries: 0,
           defer: null,
-          host: host,
-          port: port,
+          server: { ...serverPeer },
         });
       }
 
       wss.onclose = (_error: any) => {
         this.tooldb.logger(_error.error);
-        this.reconnect(connId);
+        this.reconnect(serverPeer.pubKey);
       };
 
       wss.onerror = (_error: any) => {
-        this.tooldb.logger("wss.onerror", connId);
+        this.tooldb.logger("wss.onerror", serverPeer.pubKey);
         if (_error?.error?.code !== "ETIMEDOUT") {
-          this.reconnect(connId);
+          this.reconnect(serverPeer.pubKey);
         }
       };
 
       wss.onopen = () => {
-        this.removeFromAwaiting(connId);
-        this.tooldb.logger(`Connected to ${host}:${port} sucessfully.`);
+        this.removeFromAwaiting(serverPeer.pubKey);
+        this.tooldb.logger(
+          `Connected to ${serverPeer.host}:${serverPeer.port} sucessfully.`
+        );
 
         // hi peer
         this.craftPingMessage().then((msg) => {
           wss.send(msg);
         });
+
+        this.serverPeerData[serverPeer.pubKey] = serverPeer;
+        this.connectedServers[serverPeer.pubKey] = wss;
       };
 
       wss.onmessage = (msg: WebSocket.MessageEvent) => {
@@ -664,13 +424,6 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
         this.onClientMessage(msg.data as string, clientId, (id) => {
           clientId = id;
-
-          this.isClientConnected[id] = () => {
-            return wss.readyState === wss.OPEN;
-          };
-          this.clientToSend[id] = (_msg: string) => {
-            wss.send(_msg);
-          };
         });
       };
 
@@ -681,42 +434,102 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
     return undefined;
   };
 
-  private reconnect = (connectionId: string) => {
+  private reconnect = (pubkey: string) => {
     const connection = this._awaitingConnections.filter(
-      (c) => c.id === connectionId
+      (c) => c.server.pubKey === pubkey
     )[0];
-    this.tooldb.logger("reconnect", connectionId, connection);
+    this.tooldb.logger("reconnect", pubkey, connection);
     if (connection) {
       if (connection.defer) {
         clearTimeout(connection.defer);
       }
 
-      this.tooldb.logger(
-        `connection ${connectionId} tries: ${connection.tries}`
-      );
+      this.tooldb.logger(`connection ${pubkey} tries: ${connection.tries}`);
       if (connection.tries < this.tooldb.options.maxRetries) {
         const defer = () => {
           connection.tries += 1;
           this.tooldb.logger(
-            `connection to ${connection.host}:${connection.port} (${connectionId}) retry.`
+            `connection to ${connection.server.host}:${connection.server.port} (${pubkey}) retry.`
           );
-          this.connectTo(connection.host, connection.port, connectionId);
+          this.connectTo(connection.server);
         };
 
         connection.defer = setTimeout(defer, this.tooldb.options.wait) as any;
       } else {
         this.tooldb.logger(
-          `connection attempts to ${connection.host}:${connection.port} (${connectionId}) exceeded,`
+          `connection attempts to ${connection.server.host}:${connection.server.port} (${pubkey}) exceeded,`
         );
-        this.removeFromAwaiting(connectionId);
-
-        // There are no more peers to connect!
-        if (Object.keys(this._connections).length === 0) {
-          this.tooldb.onDisconnect();
-          this.tooldb.isConnected = false;
-        }
+        this.removeFromAwaiting(pubkey);
       }
     }
     // else , attempting to reconnect to a missing peer?
   };
+
+  public sendToAll(msg: ToolDbMessage, crossServerOnly = false) {
+    if (crossServerOnly) {
+      // this.sendToAllServers(msg);
+    } else {
+      this.pushToMessageQueue(msg, []);
+      this.tryExecuteMessageQueue();
+    }
+  }
+
+  public sendToClientId(clientId: string, msg: ToolDbMessage): void {
+    this.pushToMessageQueue(msg, [clientId]);
+    this.tryExecuteMessageQueue();
+  }
+
+  private tryExecuteMessageQueue() {
+    const sentMessageIDs: string[] = [];
+    this._messageQueue.forEach((q) => {
+      const message = q.message;
+      if (!message.to.includes(this.getClientAddress())) {
+        message.to.push(this.getClientAddress());
+      }
+
+      const finalMessageString = JSON.stringify(message);
+
+      if (q.to.length > 0) {
+        // Send only to select clients
+        // try to connect if not found
+        q.to.forEach((toClient) => {
+          if (
+            this.isClientConnected[toClient] &&
+            this.isClientConnected[toClient]()
+          ) {
+            this.clientToSend[toClient](finalMessageString);
+            sentMessageIDs.push(message.id);
+          }
+
+          if (this.connectedServers[toClient] === undefined) {
+            this.findServer(toClient);
+          }
+        });
+      } else {
+        // send to all currently connected clients
+        Object.keys(this.clientToSend).forEach((toClient) => {
+          if (
+            this.isClientConnected[toClient] &&
+            this.isClientConnected[toClient]()
+          ) {
+            this.clientToSend[toClient](finalMessageString);
+            sentMessageIDs.push(message.id);
+          }
+        });
+      }
+    });
+
+    sentMessageIDs.forEach((id) => {
+      const index = this._messageQueue.findIndex(
+        (msg) => msg.message.id === id
+      );
+      this._messageQueue.splice(index, 1);
+    });
+
+    if (this._messageQueue.length > 0) {
+      setTimeout(() => {
+        this.tryExecuteMessageQueue();
+      }, 250);
+    }
+  }
 }
