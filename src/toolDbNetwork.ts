@@ -51,7 +51,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
         this._window.mozWebSocket
       : WebSocket;
 
-  private sockets: Record<string, WebSocket | null> = {};
+  private sockets: Record<string, WebSocket> = {};
 
   private socketListeners: Record<string, SocketMessageFn> = {};
 
@@ -103,11 +103,12 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
         this.socketListeners[url] = this.onSocketMessage;
 
         try {
-          const socket = new this.wss(url);
-          // eslint-disable-next-line func-names
-          const socks = this.sockets;
+          const socket = new this.wss(url) as WebSocket;
+          this.sockets[url] = socket;
+          // eslint-disable-next-line @typescript-eslint/no-this-alias
+          const _this = this;
           socket.onopen = function () {
-            socks[url] = this;
+            _this.tooldb.logger("tracker connected " + url);
             resolve(this);
           };
           socket.onmessage = (e: any) => this.socketListeners[url](socket, e);
@@ -118,10 +119,16 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
             // trackers can get disconnected and be absolutely healthy.
             // const index = this.trackerUrls.indexOf(url);
             // this.trackerUrls.splice(index, 1);
+            delete this.sockets[url];
             resolve(null);
           };
+
+          socket.onclose = () => {
+            delete this.sockets[url];
+            this.tooldb.logger("tracker closed " + url);
+          };
         } catch (e) {
-          this.tooldb.logger("makeSocket error url " + url, e);
+          this.tooldb.logger("makeSocket error " + url, e);
           resolve(null);
         }
       } else {
@@ -238,6 +245,21 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
           this.announce(socket, infoHash);
         }
       });
+    }
+  };
+
+  public stopAnnounce = () => {
+    this.tooldb.logger("stopAnnounce");
+    Object.values(this.sockets).forEach((socket) => {
+      this.tooldb.logger("socket close  " + socket.url);
+      if (socket) {
+        socket.terminate();
+        socket.close();
+      }
+    });
+    if (this.announceInterval) {
+      this.tooldb.logger("clearInterval");
+      clearInterval(this.announceInterval);
     }
   };
 

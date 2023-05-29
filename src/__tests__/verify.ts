@@ -15,6 +15,7 @@ import {
   sha256,
   signData,
   ToolDb,
+  ToolDbNetwork,
 } from "..";
 
 import { Peer } from "../types/tooldb";
@@ -45,12 +46,14 @@ beforeAll((done) => {
       return false;
     }
   }).then(() => {
-    done();
+    setTimeout(() => done(), 5000);
   });
 });
 
 afterAll((done) => {
-  if (ClientA?.network.server) ClientA.network.server.close();
+  const networkA = ClientA.network as ToolDbNetwork;
+  networkA.stopAnnounce();
+  if (networkA.server) networkA.server.close();
   if (ClientA.store) ClientA.store.quit();
   setTimeout(done, 1000);
 });

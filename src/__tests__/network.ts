@@ -3,7 +3,7 @@ import Automerge from "automerge";
 import { base64ToBinaryDocument, textRandom, ToolDb, ToolDbNetwork } from "..";
 import leveldb from "../utils/leveldb";
 import waitFor from "../utils/waitFor";
-jest.setTimeout(15000);
+jest.setTimeout(50000);
 
 let nodeA: ToolDb;
 let nodeB: ToolDb;
@@ -87,13 +87,22 @@ beforeAll((done) => {
       connected.push(id);
 
       if (connected.length === 4) {
-        setTimeout(done, 2000);
+        setTimeout(() => done(), 2000);
       }
     }
   };
 });
 
 afterAll((done) => {
+  const nodeANetwork = nodeA.network as ToolDbNetwork;
+  nodeANetwork.stopAnnounce();
+  const nodeBNetwork = nodeB.network as ToolDbNetwork;
+  nodeBNetwork.stopAnnounce();
+  const AliceNetwork = Alice.network as ToolDbNetwork;
+  AliceNetwork.stopAnnounce();
+  const BobNetwork = Bob.network as ToolDbNetwork;
+  BobNetwork.stopAnnounce();
+
   if (nodeA.network.server) nodeA.network.server.close();
   if (nodeB.network.server) nodeB.network.server.close();
   if (nodeA?.store) nodeA.store.quit();
