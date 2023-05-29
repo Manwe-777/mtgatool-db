@@ -10,8 +10,6 @@ import leveldb from "../utils/leveldb";
 
 jest.setTimeout(10000);
 
-jest.mock("../getCrypto.ts");
-
 let ClientA: ToolDb | undefined;
 let ClientB: ToolDb | undefined;
 

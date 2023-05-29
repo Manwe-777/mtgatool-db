@@ -1,4 +1,3 @@
-jest.mock("../getCrypto.ts");
 import Automerge from "automerge";
 
 import { base64ToBinaryDocument, textRandom, ToolDb, ToolDbNetwork } from "..";
