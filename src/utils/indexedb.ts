@@ -18,6 +18,9 @@ export default function indexedb(dbName = "tooldb"): ToolDbStore {
       //
     },
     query: (key: string) => Promise.resolve<string[]>([]),
+    quit: () => {
+      //
+    },
   };
 
   store.start = function () {
@@ -34,6 +37,14 @@ export default function indexedb(dbName = "tooldb"): ToolDbStore {
     };
   };
   store.start();
+
+  store.quit = function () {
+    // console.warn("store quit");
+    if (db) {
+      db.close();
+      db = null;
+    }
+  };
 
   store.put = function (key, data, cb) {
     // console.warn("store put", key);
