@@ -10,7 +10,6 @@ import recoverPubKey from "../utils/crypto/recoverPubKey";
 
 import {
   base64ToArrayBuffer,
-  encodeKeyString,
   exportKey,
   generateKeyPair,
   sha256,
@@ -21,22 +20,27 @@ import {
 import { Peer } from "../types/tooldb";
 import leveldb from "../utils/leveldb";
 import getCrypto from "../getCrypto";
+import { KEY_PREFIX } from "../tooldb";
+import waitFor from "../utils/waitFor";
 
 jest.mock("../getCrypto.ts");
 jest.setTimeout(10000);
 
-let ClientA: ToolDb | undefined;
+let ClientA: ToolDb;
 
 beforeAll((done) => {
   ClientA = new ToolDb({
     server: true,
     host: "127.0.0.1",
-    port: 8888,
+    port: 7777,
     storageAdapter: leveldb,
     storageName: "test-verify-a",
+    serverName: "test-verify-a",
   });
 
-  done();
+  waitFor(() => ClientA.getPubKey() !== undefined).then(() => {
+    done();
+  });
 });
 
 afterAll((done) => {
@@ -288,7 +292,7 @@ it("Can verify peers", async () => {
   const keys = await generateKeyPair("ECDSA", true);
 
   const pubkeyString = await exportKey("spki", keys.publicKey).then((skpub) =>
-    encodeKeyString(skpub as ArrayBuffer)
+    arrayBufferToHex(skpub as ArrayBuffer).slice(KEY_PREFIX.length)
   );
 
   const timestamp = new Date().getTime();
@@ -325,7 +329,7 @@ const peerTest = {
   host: "127.0.0.1",
   port: 8080,
   pubkey:
-    "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEGpasoiwmpN83hMJmmX9F1vcOOSOebguYwWCOSJbVJYhkUp5MSnprkn9vwPHZZdNJGXH+9jsafxB7utyRGjr5Ew==",
+    "1a96aca22c26a4df3784c266997f45d6f70e39239e6e0b98c1608e4896d5258864529e4c4a7a6b927f6fc0f1d965d3491971fef63b1a7f107bbadc911a3af913",
   sig: "acKlesKWwppyw6poRsKkDFZFwq7CnV1IMMO9H8KDw482wqZGCMKxwqkNwqDDmMOlEw7DpkXCjHc9RCECL8O3worDljBMHS3ClsO4TCzDrXk8w5/DujnCnsKKw7Qk",
 };
 

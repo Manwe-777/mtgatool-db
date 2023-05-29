@@ -1,73 +1,102 @@
 jest.mock("../getCrypto.ts");
 import Automerge from "automerge";
 
-import { base64ToBinaryDocument, textRandom, ToolDb } from "..";
+import { base64ToBinaryDocument, textRandom, ToolDb, ToolDbNetwork } from "..";
 import leveldb from "../utils/leveldb";
+import waitFor from "../utils/waitFor";
 jest.setTimeout(15000);
 
-let nodeA: ToolDb | undefined;
-let nodeB: ToolDb | undefined;
-let Alice: ToolDb | undefined;
-let Bob: ToolDb | undefined;
+let nodeA: ToolDb;
+let nodeB: ToolDb;
+let Alice: ToolDb;
+let Bob: ToolDb;
 
 beforeAll((done) => {
+  // Node A - Server
   nodeA = new ToolDb({
-    useWebrtc: false,
-    serveSocket: true,
     server: true,
     host: "127.0.0.1",
-    port: 9000,
+    ssl: false,
+    port: 6666,
     storageName: "test-node-a",
+    serverName: "test-node-a",
+    topic: "jest",
     storageAdapter: leveldb,
   });
-  nodeA.onConnect = () => checkIfOk(nodeA.options.id);
+  nodeA.onConnect = () => checkIfOk("a");
 
+  // Node B - Server
   nodeB = new ToolDb({
-    useWebrtc: false,
-    serveSocket: true,
     server: true,
     // Node A is going to be our "bootstrap" node
-    peers: [{ host: "localhost", port: 9000 }],
     host: "127.0.0.1",
-    port: 8000,
+    ssl: false,
+    port: 5555,
     storageName: "test-node-b",
+    serverName: "test-node-b",
+    topic: "jest",
     storageAdapter: leveldb,
   });
-  nodeB.onConnect = () => checkIfOk(nodeB.options.id);
+  nodeB.onConnect = () => checkIfOk("b");
 
+  waitFor(() => nodeA.getPubKey() !== undefined).then(() => {
+    (nodeA.network as ToolDbNetwork).getServerPeerData().then((data) => {
+      if (data) {
+        (nodeB.network as ToolDbNetwork).connectTo(data);
+      }
+    });
+  });
+
+  // Alice - Client
   Alice = new ToolDb({
-    useWebrtc: false,
     server: false,
-    peers: [{ host: "localhost", port: 9000 }],
     storageName: "test-alice",
     storageAdapter: leveldb,
+    wait: 1000,
+    topic: "jest",
   });
-  Alice.onConnect = () => checkIfOk(Alice.options.id);
+  Alice.onConnect = () => checkIfOk("c");
 
+  waitFor(() => nodeA.getPubKey() !== undefined).then(() => {
+    (nodeA.network as ToolDbNetwork).getServerPeerData().then((data) => {
+      if (data) {
+        (Alice.network as ToolDbNetwork).connectTo(data);
+      }
+    });
+  });
+
+  // Bob - Client
   Bob = new ToolDb({
-    useWebrtc: false,
     server: false,
-    peers: [{ host: "localhost", port: 8000 }],
     storageName: "test-bob",
     storageAdapter: leveldb,
+    topic: "jest",
   });
-  Bob.onConnect = () => checkIfOk(Bob.options.id);
+  Bob.onConnect = () => checkIfOk("d");
 
-  const connected = [];
+  waitFor(() => nodeB.getPubKey() !== undefined).then(() => {
+    (nodeB.network as ToolDbNetwork).getServerPeerData().then((data) => {
+      if (data) {
+        (Bob.network as ToolDbNetwork).connectTo(data);
+      }
+    });
+  });
+
+  const connected: string[] = [];
   const checkIfOk = (id: string) => {
     if (!connected.includes(id)) {
       connected.push(id);
 
-      if (connected.length === 3) {
-        done();
+      if (connected.length === 4) {
+        setTimeout(done, 2000);
       }
     }
   };
 });
 
 afterAll((done) => {
-  if (nodeA?.network.server) nodeA.network.server.close();
-  if (nodeB?.network.server) nodeB.network.server.close();
+  if (nodeA.network.server) nodeA.network.server.close();
+  if (nodeB.network.server) nodeB.network.server.close();
 
   setTimeout(done, 1000);
 });
@@ -103,7 +132,7 @@ it("A can sign up and B can sign in", () => {
       setTimeout(() => {
         Bob.signIn(testUsername, testPassword).then((res) => {
           expect(Bob.user).toBeDefined();
-          expect(Bob.user.name).toBe(testUsername);
+          expect(Bob.user?.name).toBe(testUsername);
 
           // test for failed sign in
           Bob.signIn(testUsername, testPassword + " ").catch((e) => {
@@ -149,7 +178,10 @@ it("CRDTs", () => {
     Alice.putCrdt(crdtKey, changes).then((put) => {
       setTimeout(() => {
         Bob.getCrdt(crdtKey).then((data) => {
-          const doc = Automerge.load(base64ToBinaryDocument(data)) as any;
+          expect(data).toBeDefined();
+          const doc = Automerge.load(
+            base64ToBinaryDocument(data as string)
+          ) as any;
           expect(doc.test).toBe(crdtValue);
           expect(doc.arr).toStrictEqual(["arr", "test"]);
           resolve();

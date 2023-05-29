@@ -7,19 +7,12 @@ import {
   ToolDbNetworkAdapter,
   ToolDbMessage,
   signData,
+  ServerPeerData,
 } from ".";
 import arrayBufferToHex from "./utils/arrayBufferToHex";
+import waitFor from "./utils/waitFor";
 
 type SocketMessageFn = (socket: WebSocket, e: { data: any }) => void;
-
-interface ServerPeerData {
-  host: string;
-  port: number;
-  ssl: boolean;
-  name: string;
-  pubKey: string;
-  signature: string;
-}
 
 interface ConnectionAwaiting {
   socket: WebSocket;
@@ -33,31 +26,30 @@ interface MessageQueue {
   to: string[];
 }
 
-function makeDelay(ms: number) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
 const announceSecs = 30;
 
 const defaultTrackerUrls = [
-  "wss://tooldb-tracker.herokuapp.com/",
+  // "wss://tooldb-tracker.herokuapp.com/",
   "wss://tracker.fastcast.nz",
   "wss://tracker.openwebtorrent.com:443/announce",
   "wss://tracker.btorrent.xyz",
   "wss://tracker.webtorrent.io",
   "wss://tracker.files.fm:7073/announce",
-  "wss://spacetradersapi-chatbox.herokuapp.com:443/announce",
+  // "wss://spacetradersapi-chatbox.herokuapp.com:443/announce",
 ];
 
 export default class ToolDbNetwork extends ToolDbNetworkAdapter {
-  private wnd =
+  private _window =
     typeof window === "undefined" ? undefined : (window as any | undefined);
 
-  private wss = this.wnd
-    ? this.wnd.WebSocket || this.wnd.webkitWebSocket || this.wnd.mozWebSocket
-    : WebSocket;
+  private isNode = typeof jest !== "undefined" || typeof window === "undefined";
+
+  private wss =
+    !this.isNode && this._window
+      ? this._window.WebSocket ||
+        this._window.webkitWebSocket ||
+        this._window.mozWebSocket
+      : WebSocket;
 
   private sockets: Record<string, WebSocket | null> = {};
 
@@ -75,7 +67,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
   private handledOffers: Record<string, boolean> = {};
 
-  private _awaitingConnections: ConnectionAwaiting[] = [];
+  private _awaitingConnections: Record<string, ConnectionAwaiting> = {};
 
   // We need to create a queue to handle a situation when we need
   // to contact a server, but we havent connected to it yet.
@@ -93,11 +85,8 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
   }
 
   private removeFromAwaiting = (pubkey: string) => {
-    const index = this._awaitingConnections.findIndex(
-      (c) => c.server.pubKey === pubkey
-    );
-    if (index !== -1) {
-      this._awaitingConnections.slice(index, 1);
+    if (this._awaitingConnections[pubkey]) {
+      delete this._awaitingConnections[pubkey];
     }
   };
 
@@ -107,7 +96,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
   private makeSocket = (url: string) => {
     return new Promise<WebSocket | null>((resolve) => {
       if (!this.sockets[url]) {
-        this.tooldb.logger("begin tracker connection " + url);
+        // this.tooldb.logger("begin tracker connection " + url);
 
         this.socketListeners[url] = this.onSocketMessage;
 
@@ -130,6 +119,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
             resolve(null);
           };
         } catch (e) {
+          this.tooldb.logger("makeSocket error url " + url, e);
           resolve(null);
         }
       } else {
@@ -138,52 +128,69 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
     });
   };
 
+  /*
+   * Make a serverPeerData object from our keys
+   */
+  public getServerPeerData = () => {
+    return new Promise<ServerPeerData | null>((resolve, reject) => {
+      if (this.tooldb.options.defaultKeys?.privateKey) {
+        signData(
+          this.tooldb.options.host,
+          this.tooldb.options.defaultKeys?.privateKey
+        ).then((signature) => {
+          const data = {
+            host: this.tooldb.options.host,
+            port: this.tooldb.options.port,
+            ssl: this.tooldb.options.ssl,
+            name: this.tooldb.options.serverName,
+            pubKey: this.tooldb.getPubKey(),
+            signature: arrayBufferToHex(signature),
+          } as ServerPeerData;
+          resolve(data);
+        });
+      } else {
+        reject();
+      }
+    });
+  };
+
   /**
    * Announce ourselves to a tracker (send "announce")
    */
   private announce = async (socket: WebSocket, infoHash: string) => {
-    if (
-      this.tooldb.options.server &&
-      this.tooldb.options.defaultKeys?.privateKey
-    ) {
-      signData(
-        this.tooldb.options.host,
-        this.tooldb.options.defaultKeys?.privateKey
-      ).then((signature) => {
-        const offer = {
-          host: this.tooldb.options.host,
-          port: this.tooldb.options.port,
-          ssl: this.tooldb.options.ssl,
-          name: this.tooldb.options.serverName,
-          pubKey: this.tooldb.getPubKey(),
-          signature: arrayBufferToHex(signature),
-        } as ServerPeerData;
+    const pubKey = this.getClientAddress();
+    // this.tooldb.logger("announce", infoHash, pubKey);
+    if (pubKey) {
+      if (this.tooldb.options.server) {
+        this.getServerPeerData().then((offer) => {
+          const offers = [0, 1, 2].map((n) => {
+            return {
+              offer: { sdp: JSON.stringify(offer), type: "offer" },
+              offer_id: textRandom(20),
+            };
+          });
 
-        const offers = [0, 1, 2, 3, 4].map((n) => {
-          return {
-            offer: { sdp: JSON.stringify(offer), type: "offer" },
-            offer_id: textRandom(20),
+          // this.tooldb.logger("announce offer", offer);
+
+          const message = {
+            action: "announce",
+            info_hash: infoHash,
+            peer_id: pubKey.slice(-20),
+            numwant: 1,
+            offers,
           };
+          socket.send(JSON.stringify(message));
         });
-
+      } else {
         const message = {
           action: "announce",
           info_hash: infoHash,
-          peer_id: this.getClientAddress().slice(-20),
+          peer_id: pubKey.slice(-20),
           numwant: 1,
-          offers,
         };
         socket.send(JSON.stringify(message));
-      });
-    } else {
-      socket.send(
-        JSON.stringify({
-          action: "announce",
-          info_hash: infoHash,
-          peer_id: this.getClientAddress().slice(-20),
-          numwant: 1,
-        })
-      );
+        // this.tooldb.logger("announce message", message);
+      }
     }
   };
 
@@ -194,22 +201,18 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
     const infoHash = this.codeToHash(this.tooldb.getPubKey());
 
     this.tooldb.logger(`announce all start`);
-    this.tooldb.logger(this.trackerUrls);
-    const delayPerTracker = (announceSecs * 1000) / this.trackerUrls.length;
 
     this.trackerUrls.forEach(async (url: string, index) => {
-      makeDelay(delayPerTracker * index).then(async () => {
-        // this.tooldb.logger(
-        //   `announce: "${this.tooldb.options.serverName}" (${infoHash})`
-        // );
-        const socket = await this.makeSocket(url);
-        //this.tooldb.logger(" ok tracker " + url);
-        // this.tooldb.logger("socket", url, index);
-        if (socket && socket.readyState === 1) {
-          //this.tooldb.logger("announce to " + url);
-          this.announce(socket, infoHash);
-        }
-      });
+      // this.tooldb.logger(
+      //   `announce: "${this.tooldb.options.serverName}" (${infoHash})`
+      // );
+      const socket = await this.makeSocket(url);
+      //this.tooldb.logger(" ok tracker " + url);
+      // this.tooldb.logger("socket", url, index);
+      if (socket && socket.readyState === 1) {
+        //this.tooldb.logger("announce to " + url);
+        this.announce(socket, infoHash);
+      }
     });
   };
 
@@ -225,6 +228,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
     if (!this.serversFinding.includes(serverKey)) {
       this.serversFinding.push(serverKey);
       const infoHash = this.codeToHash(serverKey);
+      this.tooldb.logger(`findServer: "${serverKey}" (${infoHash})`);
 
       this.trackerUrls.forEach(async (url: string) => {
         const socket = await this.makeSocket(url);
@@ -270,7 +274,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       return;
     }
 
-    if (val.peer_id && val.peer_id === this.getClientAddress().slice(-20)) {
+    if (val.peer_id && val.peer_id === this.getClientAddress()?.slice(-20)) {
       // this.tooldb.logger("Peer ids mismatch", val.peer_id, selfId);
       return;
     }
@@ -301,18 +305,20 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const _this = this;
     if (_this.tooldb.options.server) {
-      setTimeout(function () {
-        _this.announceInterval = setInterval(
-          _this.announceAll,
-          announceSecs * 1000
-        );
-        _this.announceAll();
-      }, 500);
+      waitFor(() => _this.tooldb.getPubKey() !== undefined).then(() => {
+        setTimeout(function () {
+          _this.announceInterval = setInterval(
+            _this.announceAll,
+            announceSecs * 1000
+          );
+          _this.announceAll();
+        }, 500);
+      });
     }
 
     // Basically the same as the WS network adapter
     // Only for Node!
-    if (this.tooldb.options.server && typeof window === "undefined") {
+    if (this.tooldb.options.server && this.isNode) {
       const server = new WebSocket.Server({
         port: this.tooldb.options.port,
         server: this.tooldb.options.httpServer,
@@ -375,28 +381,27 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
         wss.send(_msg);
       };
 
-      const previousConnection = this._awaitingConnections.filter(
-        (c) => c.server.pubKey === serverPeer.pubKey
-      )[0];
-
-      if (serverPeer.pubKey && previousConnection) {
-        previousConnection.socket = wss;
+      const previousConnection = this._awaitingConnections[serverPeer.pubKey];
+      if (previousConnection) {
+        // this.tooldb.logger("previousConnection");
+        this._awaitingConnections[serverPeer.pubKey].socket = wss;
       } else {
-        this._awaitingConnections.push({
+        // this.tooldb.logger("new connection");
+        this._awaitingConnections[serverPeer.pubKey] = {
           socket: wss,
           tries: 0,
           defer: null,
           server: { ...serverPeer },
-        });
+        };
       }
 
       wss.onclose = (_error: any) => {
-        this.tooldb.logger(_error.error);
+        this.tooldb.logger("wss.onclose");
         this.reconnect(serverPeer.pubKey);
       };
 
       wss.onerror = (_error: any) => {
-        this.tooldb.logger("wss.onerror", serverPeer.pubKey);
+        this.tooldb.logger("wss.onerror");
         if (_error?.error?.code !== "ETIMEDOUT") {
           this.reconnect(serverPeer.pubKey);
         }
@@ -429,27 +434,24 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
       return wss;
     } catch (e) {
-      this.tooldb.logger(e);
+      this.tooldb.logger("onconnect err", e);
     }
     return undefined;
   };
 
   private reconnect = (pubkey: string) => {
-    const connection = this._awaitingConnections.filter(
-      (c) => c.server.pubKey === pubkey
-    )[0];
-    this.tooldb.logger("reconnect", pubkey, connection);
+    const connection = this._awaitingConnections[pubkey];
     if (connection) {
       if (connection.defer) {
         clearTimeout(connection.defer);
       }
 
-      this.tooldb.logger(`connection ${pubkey} tries: ${connection.tries}`);
+      this.tooldb.logger(`tries: ${connection.tries}`);
       if (connection.tries < this.tooldb.options.maxRetries) {
         const defer = () => {
-          connection.tries += 1;
+          this._awaitingConnections[pubkey].tries += 1;
           this.tooldb.logger(
-            `connection to ${connection.server.host}:${connection.server.port} (${pubkey}) retry.`
+            `connection to ${connection.server.host}:${connection.server.port} retry.`
           );
           this.connectTo(connection.server);
         };
@@ -457,7 +459,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
         connection.defer = setTimeout(defer, this.tooldb.options.wait) as any;
       } else {
         this.tooldb.logger(
-          `connection attempts to ${connection.server.host}:${connection.server.port} (${pubkey}) exceeded,`
+          `connection attempts to ${connection.server.host}:${connection.server.port} exceeded,`
         );
         this.removeFromAwaiting(pubkey);
       }
@@ -467,7 +469,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
   public sendToAll(msg: ToolDbMessage, crossServerOnly = false) {
     if (crossServerOnly) {
-      // this.sendToAllServers(msg);
+      this.sendToAllServers(msg);
     } else {
       this.pushToMessageQueue(msg, []);
       this.tryExecuteMessageQueue();
@@ -479,12 +481,19 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
     this.tryExecuteMessageQueue();
   }
 
+  public sendToAllServers(msg: ToolDbMessage): void {
+    this.pushToMessageQueue(msg, Object.keys(this.connectedServers));
+    this.tryExecuteMessageQueue();
+  }
+
   private tryExecuteMessageQueue() {
     const sentMessageIDs: string[] = [];
     this._messageQueue.forEach((q) => {
       const message = q.message;
-      if (!message.to.includes(this.getClientAddress())) {
-        message.to.push(this.getClientAddress());
+      const pubKey = this.getClientAddress();
+
+      if (pubKey && !message.to.includes(pubKey)) {
+        message.to.push(pubKey);
       }
 
       const finalMessageString = JSON.stringify(message);

@@ -161,7 +161,8 @@ export default class ToolDbNetworkAdapter {
    * @param isRelay if we should relay this message
    */
   public sendToAll(msg: ToolDbMessage, crossServerOnly = false) {
-    const to = uniq([...msg.to, this.getClientAddress()]);
+    const pubkey = this.getClientAddress();
+    const to = pubkey ? uniq([...msg.to, pubkey]) : msg.to;
 
     const finalMessage = JSON.stringify({ ...msg, to });
 
@@ -199,7 +200,8 @@ export default class ToolDbNetworkAdapter {
    * @param msg message data
    */
   public sendToClientId(clientId: string, msg: ToolDbMessage) {
-    const to = uniq([...msg.to, this.getClientAddress()]);
+    const pubkey = this.getClientAddress();
+    const to = pubkey ? uniq([...msg.to, pubkey]) : msg.to;
     const finalMessage = JSON.stringify({ ...msg, to });
 
     this.tooldb.logger(

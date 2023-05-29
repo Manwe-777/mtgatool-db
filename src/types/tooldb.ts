@@ -12,6 +12,15 @@ export interface Peer {
   sig: string;
 }
 
+export interface ServerPeerData {
+  host: string;
+  port: number;
+  ssl: boolean;
+  name: string;
+  pubKey: string;
+  signature: string;
+}
+
 export interface ToolDbStore {
   start: () => void;
   put: (
@@ -52,7 +61,6 @@ export interface ToolDbOptions {
   storageAdapter: ToolDbStorageAdapter;
   topic: string;
   defaultKeys: CryptoKeyPair | undefined;
-  serveSocket: boolean;
   maxPeers: number;
 }
 

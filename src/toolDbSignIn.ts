@@ -8,7 +8,8 @@ import sha256 from "./utils/sha256";
 
 import { UserRootData } from ".";
 
-import ToolDb from "./tooldb";
+import ToolDb, { KEY_PREFIX } from "./tooldb";
+import base64KeyToHex from "./utils/crypto/base64KeyToHex";
 
 export default function toolDbSignIn(
   this: ToolDb,
@@ -112,6 +113,10 @@ export default function toolDbSignIn(
                       name: user,
                       pubKey: _user.keys.skpub,
                     };
+
+                    base64KeyToHex(parsedKeys.skpub).then((pubKey) => {
+                      this._pubKey = pubKey.slice(0, KEY_PREFIX.length);
+                    });
                     resolve(newKeys);
                   }
                 })

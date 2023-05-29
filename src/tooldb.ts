@@ -6,7 +6,6 @@ import {
   CrdtMessage,
   exportKey,
   generateKeyPair,
-  loadKeysComb,
   PutMessage,
   ToolDbMessage,
   VerificationData,
@@ -75,7 +74,7 @@ export default class ToolDb extends EventEmitter {
 
   private _documents: Record<string, FreezeObject<any>> = {};
 
-  private _pubKey = "";
+  public _pubKey: string | undefined = undefined;
 
   public clientOnMessage = toolDbClientOnMessage;
 
@@ -278,7 +277,6 @@ export default class ToolDb extends EventEmitter {
     storageAdapter: typeof window === "undefined" ? leveldb : indexedb,
     topic: "",
     defaultKeys: undefined,
-    serveSocket: false,
     maxPeers: 4,
     ssl: false,
     serverName: "default-server",

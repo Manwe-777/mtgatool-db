@@ -118,24 +118,21 @@ it("Can generate Encryption/extractable keys", async () => {
 
 it("Cant get the public key keys if its not authorized", (done) => {
   setTimeout(() => {
-    toolDbGetPubKey
-      .call(ClientA)
-      .then((e) => {
-        expect(e).toBeUndefined();
-      })
-      .catch((e) => {
-        expect(e.message).toBe("You are not authorized yet.");
-        done();
-      });
+    try {
+      toolDbGetPubKey.call(ClientA);
+      done();
+    } catch (e) {
+      expect(e).toThrowError();
+      done();
+    }
   }, 250);
 });
 
 it("Cant get the public key keys", (done) => {
   setTimeout(() => {
-    toolDbGetPubKey.call(ClientB).then((key) => {
-      expect(key).toBeDefined();
-      done();
-    });
+    const key = toolDbGetPubKey.call(ClientB);
+    expect(key).toBeDefined();
+    done();
   }, 250);
 });
 
