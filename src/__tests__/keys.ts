@@ -114,16 +114,12 @@ it("Can generate Encryption/extractable keys", async () => {
   expect(privKey).toBeDefined();
 });
 
-it("Cant get the public key keys if its not authorized", (done) => {
-  setTimeout(() => {
-    try {
-      toolDbGetPubKey.call(ClientA);
-      done();
-    } catch (e) {
-      expect(e).toThrowError();
-      done();
-    }
-  }, 250);
+it("Cant get the public key keys if its not authorized", () => {
+  try {
+    toolDbGetPubKey.call(ClientA);
+  } catch (e) {
+    expect(e).toThrowError();
+  }
 });
 
 it("Cant get the public key keys", (done) => {
