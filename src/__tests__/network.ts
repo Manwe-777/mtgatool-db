@@ -96,7 +96,10 @@ beforeAll((done) => {
 afterAll((done) => {
   if (nodeA.network.server) nodeA.network.server.close();
   if (nodeB.network.server) nodeB.network.server.close();
-
+  if (nodeA?.store) nodeA.store.quit();
+  if (nodeB?.store) nodeB.store.quit();
+  if (Alice?.store) Alice.store.quit();
+  if (Bob?.store) Bob.store.quit();
   setTimeout(done, 1000);
 });
 

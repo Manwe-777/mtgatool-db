@@ -51,6 +51,7 @@ beforeAll((done) => {
 
 afterAll((done) => {
   if (ClientA?.network.server) ClientA.network.server.close();
+  if (ClientA.store) ClientA.store.quit();
   setTimeout(done, 1000);
 });
 

@@ -15,7 +15,6 @@ let ClientB: ToolDb | undefined;
 
 beforeAll((done) => {
   ClientA = new ToolDb({
-    server: true,
     host: "127.0.0.1",
     port: 9999,
     storageAdapter: leveldb,
@@ -23,7 +22,6 @@ beforeAll((done) => {
   });
 
   ClientB = new ToolDb({
-    server: true,
     host: "127.0.0.1",
     port: 9998,
     storageAdapter: leveldb,
@@ -37,6 +35,8 @@ beforeAll((done) => {
 afterAll((done) => {
   if (ClientA?.network.server) ClientA.network.server.close();
   if (ClientB?.network.server) ClientB.network.server.close();
+  if (ClientA?.store) ClientA.store.quit();
+  if (ClientB?.store) ClientB.store.quit();
   setTimeout(done, 1000);
 });
 

@@ -19,12 +19,19 @@ export default function leveldb(dbName = "tooldb"): ToolDbStore {
       //
     },
     query: (key: string) => Promise.resolve<string[]>([]),
+    quit: () => {
+      //
+    },
   };
 
   store.start = function () {
     db = level(dbName);
   };
   store.start();
+
+  store.quit = function () {
+    db.close();
+  };
 
   store.put = function (key, data, cb) {
     db.put(key, data, function (err: any) {

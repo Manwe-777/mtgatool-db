@@ -33,6 +33,7 @@ export interface ToolDbStore {
     callback: (err: any | null, data?: string) => void
   ) => void;
   query: (key: string) => Promise<string[]>;
+  quit: () => void;
 }
 
 export type ToolDbStorageAdapter = (dbName?: string) => ToolDbStore;
