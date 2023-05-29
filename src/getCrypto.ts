@@ -1,5 +1,5 @@
 export default function getCrypto(this: any): typeof window.crypto {
-  if (typeof window === "undefined" || typeof jest !== "undefined") {
+  if (typeof window === "undefined") {
     return require("crypto").webcrypto;
   }
 

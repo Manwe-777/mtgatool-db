@@ -305,7 +305,13 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const _this = this;
     if (_this.tooldb.options.server) {
-      waitFor(() => _this.tooldb.getPubKey() !== undefined).then(() => {
+      waitFor(() => {
+        try {
+          return _this.tooldb.getPubKey() !== undefined;
+        } catch {
+          return false;
+        }
+      }).then(() => {
         setTimeout(function () {
           _this.announceInterval = setInterval(
             _this.announceAll,

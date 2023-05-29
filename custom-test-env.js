@@ -1,5 +1,5 @@
 const fs = require("fs");
-const Environment = require("jest-environment-jsdom");
+const Environment = require("jest-environment-node");
 
 /**
  * A custom environment to set the TextEncoder.

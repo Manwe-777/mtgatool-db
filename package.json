@@ -12,7 +12,7 @@
     "publish": "np",
     "prepublish": "npm run build",
     "test": "jest --clearCache && jest ./src --detectOpenHandles",
-    "test:watch": "jest --watch ./src",
+    "test:watch": "jest --clearCache && jest --watch ./src --detectOpenHandles",
     "server": "npm run build && node dist/server.js",
     "gen-key": "npm run build && node dist/generateKeyPair.js"
   },
@@ -25,6 +25,7 @@
     "buffer": "^6.0.3",
     "crypto": "^1.0.1",
     "elliptic": "^6.5.4",
+    "jest-environment-node": "^27.2.5",
     "level": "^7.0.0",
     "lodash": "^4.17.21",
     "ws": "^7.5.5"

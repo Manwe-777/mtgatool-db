@@ -23,7 +23,6 @@ import getCrypto from "../getCrypto";
 import { KEY_PREFIX } from "../tooldb";
 import waitFor from "../utils/waitFor";
 
-jest.mock("../getCrypto.ts");
 jest.setTimeout(10000);
 
 let ClientA: ToolDb;
@@ -37,8 +36,15 @@ beforeAll((done) => {
     storageName: "test-verify-a",
     serverName: "test-verify-a",
   });
+  ClientA.anonSignIn();
 
-  waitFor(() => ClientA.getPubKey() !== undefined).then(() => {
+  waitFor(() => {
+    try {
+      return ClientA.getPubKey() !== undefined;
+    } catch {
+      return false;
+    }
+  }).then(() => {
     done();
   });
 });

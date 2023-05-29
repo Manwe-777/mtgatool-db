@@ -1,8 +1,6 @@
 import proofOfWork from "../utils/proofOfWork";
 import sha256 from "../utils/sha256";
 
-jest.mock("../getCrypto.ts");
-
 it("Proof of work values are correct", () => {
   const TestValue = "SomeVeryTest-yValue";
 
