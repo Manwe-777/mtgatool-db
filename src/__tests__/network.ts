@@ -109,7 +109,7 @@ afterAll((done) => {
   if (nodeB?.store) nodeB.store.quit();
   if (Alice?.store) Alice.store.quit();
   if (Bob?.store) Bob.store.quit();
-  setTimeout(done, 1000);
+  setTimeout(() => done(), 1000);
 });
 
 it("A and B can communicate trough the swarm", () => {
@@ -151,7 +151,7 @@ it("A can sign up and B can sign in", () => {
             resolve();
           });
         });
-      }, 1000);
+      }, 2000);
     });
   });
 });
