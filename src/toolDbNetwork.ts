@@ -69,6 +69,8 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
   private _awaitingConnections: Record<string, ConnectionAwaiting> = {};
 
+  public server: WebSocket.Server | null = null;
+
   // We need to create a queue to handle a situation when we need
   // to contact a server, but we havent connected to it yet.
   private _messageQueue: MessageQueue[] = [];
@@ -325,12 +327,12 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
     // Basically the same as the WS network adapter
     // Only for Node!
     if (this.tooldb.options.server && this.isNode) {
-      const server = new WebSocket.Server({
+      this.server = new WebSocket.Server({
         port: this.tooldb.options.port,
         server: this.tooldb.options.httpServer,
       });
 
-      server.on("connection", (socket: WebSocket) => {
+      this.server.on("connection", (socket: WebSocket) => {
         let clientId: string | null = null;
 
         socket.on("close", () => {
