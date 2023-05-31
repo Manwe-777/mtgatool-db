@@ -16,14 +16,10 @@ export default function toolDbClientOnMessage(
     return;
   }
 
-  this.emit("message", message, remotePeerId);
-
   this.processedIds[message.type].push(message.id);
 
-  if (this.options.debug) {
-    console.warn(`Got message ${message.type} from ${remotePeerId}`);
-    console.warn(message);
-  }
+  // console.warn(`Got message ${message.type} from ${remotePeerId}`);
+  this.logger("message", message, remotePeerId);
 
   // Check if we are listening for this ID
   if (message.id) {
@@ -35,7 +31,7 @@ export default function toolDbClientOnMessage(
   }
 
   if (message === undefined || message.type === undefined) {
-    console.warn("Message is invalid!", message, typeof message);
+    this.logger("Message is invalid!", message, typeof message);
     return;
   }
 

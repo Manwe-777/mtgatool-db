@@ -56,8 +56,6 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
   private socketListeners: Record<string, SocketMessageFn> = {};
 
-  private connectedServers: Record<string, WebSocket> = {};
-
   public serverPeerData: Record<string, ServerPeerData> = {};
 
   private serversBlacklist: string[] = [];
@@ -111,7 +109,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
           // eslint-disable-next-line @typescript-eslint/no-this-alias
           const _this = this;
           socket.onopen = function () {
-            _this.tooldb.logger("tracker connected " + url);
+            // _this.tooldb.logger("tracker connected " + url);
             resolve(this);
           };
           socket.onmessage = (e: any) => this.socketListeners[url](socket, e);
@@ -128,10 +126,10 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
           socket.onclose = () => {
             delete this.sockets[url];
-            this.tooldb.logger("tracker closed " + url);
+            // this.tooldb.logger("tracker closed " + url);
           };
         } catch (e) {
-          this.tooldb.logger("makeSocket error " + url, e);
+          // this.tooldb.logger("makeSocket error " + url, e);
           resolve(null);
         }
       } else {
@@ -212,7 +210,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
   private announceAll = async () => {
     const infoHash = this.codeToHash(this.tooldb.getPubKey());
 
-    this.tooldb.logger(`announce all start`);
+    // this.tooldb.logger(`announce all start`);
 
     this.trackerUrls.forEach(async (url: string, index) => {
       // this.tooldb.logger(
@@ -240,7 +238,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
     if (!this.serversFinding.includes(serverKey)) {
       this.serversFinding.push(serverKey);
       const infoHash = this.codeToHash(serverKey);
-      this.tooldb.logger(`findServer: "${serverKey}" (${infoHash})`);
+      // this.tooldb.logger(`findServer: "${serverKey}" (${infoHash})`);
 
       this.trackerUrls.forEach(async (url: string) => {
         const socket = await this.makeSocket(url);
@@ -252,16 +250,13 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
   };
 
   public stopAnnounce = () => {
-    this.tooldb.logger("stopAnnounce");
     Object.values(this.sockets).forEach((socket) => {
-      this.tooldb.logger("socket close  " + socket.url);
       if (socket) {
         socket.terminate();
         socket.close();
       }
     });
     if (this.announceInterval) {
-      this.tooldb.logger("clearInterval");
       clearInterval(this.announceInterval);
     }
   };
@@ -288,7 +283,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
     try {
       val = JSON.parse(e.data);
-      this.tooldb.logger("onSocketMessage", socket.url, val);
+      // this.tooldb.logger("onSocketMessage", socket.url, val);
     } catch (_e: any) {
       this.tooldb.logger(`Received malformed JSON`, e.data);
       return;
@@ -297,7 +292,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
     const failure = val["failure reason"];
 
     if (failure) {
-      this.tooldb.logger(`${e.origin}: torrent tracker failure (${failure})`);
+      // this.tooldb.logger(`${e.origin}: torrent tracker failure (${failure})`);
       return;
     }
 
@@ -316,10 +311,11 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       const serverData = JSON.parse(val.offer.sdp);
 
       if (
-        this.connectedServers[serverData.pubKey] === undefined &&
+        this.tooldb.serverPeers.filter((s) => s.pubkey === serverData.pubKey)
+          .length === 0 &&
         this.serversBlacklist.indexOf(serverData.pubKey) === -1
       ) {
-        this.tooldb.logger("Now we connect to ", serverData);
+        // this.tooldb.logger("Now we connect to ", serverData);
         this.connectTo(serverData);
       } else {
         // we already connected, unplug all trackers/unsubscribe
@@ -396,7 +392,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
    * @returns websocket
    */
   public connectTo = (serverPeer: ServerPeerData): WebSocket | undefined => {
-    this.tooldb.logger("connectTo:", serverPeer);
+    // this.tooldb.logger("connectTo:", serverPeer);
     try {
       const wsUrl = serverPeer.ssl
         ? "wss://" + serverPeer.host
@@ -432,14 +428,14 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       }
 
       wss.onclose = (_error: any) => {
-        this.tooldb.logger("wss.onclose");
+        // this.tooldb.logger("wss.onclose");
         if (this.serversBlacklist.indexOf(serverPeer.pubKey) === -1) {
           this.reconnect(serverPeer.pubKey);
         }
       };
 
       wss.onerror = (_error: any) => {
-        this.tooldb.logger("wss.onerror");
+        // this.tooldb.logger("wss.onerror");
         if (
           _error?.error?.code !== "ETIMEDOUT" &&
           this.serversBlacklist.indexOf(serverPeer.pubKey) === -1
@@ -460,7 +456,6 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
         });
 
         this.serverPeerData[serverPeer.pubKey] = serverPeer;
-        this.connectedServers[serverPeer.pubKey] = wss;
       };
 
       wss.onmessage = (msg: WebSocket.MessageEvent) => {
@@ -513,6 +508,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
   };
 
   public sendToAll(msg: ToolDbMessage, crossServerOnly = false) {
+    // this.tooldb.logger("sendToAll", msg, crossServerOnly);
     if (crossServerOnly) {
       this.sendToAllServers(msg);
     } else {
@@ -523,11 +519,16 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
   public sendToClientId(clientId: string, msg: ToolDbMessage): void {
     this.pushToMessageQueue(msg, [clientId]);
+    // this.tooldb.logger("sendToClientId", clientId, msg);
     this.tryExecuteMessageQueue();
   }
 
   public sendToAllServers(msg: ToolDbMessage): void {
-    this.pushToMessageQueue(msg, Object.keys(this.connectedServers));
+    // this.tooldb.logger("sendToAllServers", msg);
+    this.pushToMessageQueue(
+      msg,
+      this.tooldb.serverPeers.map((s) => s.pubkey)
+    );
     this.tryExecuteMessageQueue();
   }
 
@@ -551,11 +552,15 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
             this.isClientConnected[toClient] &&
             this.isClientConnected[toClient]()
           ) {
+            // this.tooldb.logger("Sending to client", toClient);
             this.clientToSend[toClient](finalMessageString);
             sentMessageIDs.push(message.id);
           }
 
-          if (this.connectedServers[toClient] === undefined) {
+          if (
+            this.tooldb.serverPeers.filter((s) => s.pubkey === toClient)
+              .length === 0
+          ) {
             this.findServer(toClient);
           }
         });
