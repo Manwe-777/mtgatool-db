@@ -59,6 +59,8 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
   public serverPeerData: Record<string, ServerPeerData> = {};
 
+  private serversBlacklist: string[] = [];
+
   private serversFinding: string[] = [];
 
   public announceInterval: any;
@@ -312,7 +314,10 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
       const serverData = JSON.parse(val.offer.sdp);
 
-      if (this.connectedServers[serverData.pubKey] === undefined) {
+      if (
+        this.connectedServers[serverData.pubKey] === undefined &&
+        this.serversBlacklist.indexOf(serverData.pubKey) === -1
+      ) {
         this.tooldb.logger("Now we connect to ", serverData);
         this.connectTo(serverData);
       } else {
@@ -427,12 +432,17 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
       wss.onclose = (_error: any) => {
         this.tooldb.logger("wss.onclose");
-        this.reconnect(serverPeer.pubKey);
+        if (this.serversBlacklist.indexOf(serverPeer.pubKey) === -1) {
+          this.reconnect(serverPeer.pubKey);
+        }
       };
 
       wss.onerror = (_error: any) => {
         this.tooldb.logger("wss.onerror");
-        if (_error?.error?.code !== "ETIMEDOUT") {
+        if (
+          _error?.error?.code !== "ETIMEDOUT" &&
+          this.serversBlacklist.indexOf(serverPeer.pubKey) === -1
+        ) {
           this.reconnect(serverPeer.pubKey);
         }
       };
@@ -477,7 +487,10 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       }
 
       this.tooldb.logger(`tries: ${connection.tries}`);
-      if (connection.tries < this.tooldb.options.maxRetries) {
+      if (
+        connection.tries < this.tooldb.options.maxRetries &&
+        this.serversBlacklist.indexOf(pubkey) === -1
+      ) {
         const defer = () => {
           this._awaitingConnections[pubkey].tries += 1;
           this.tooldb.logger(
@@ -491,6 +504,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
         this.tooldb.logger(
           `connection attempts to ${connection.server.host}:${connection.server.port} exceeded,`
         );
+        this.serversBlacklist.push(pubkey);
         this.removeFromAwaiting(pubkey);
       }
     }
