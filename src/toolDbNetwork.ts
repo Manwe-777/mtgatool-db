@@ -29,13 +29,14 @@ interface MessageQueue {
 const announceSecs = 30;
 
 const defaultTrackerUrls = [
-  // "wss://tooldb-tracker.herokuapp.com/",
-  "wss://tracker.fastcast.nz",
-  "wss://tracker.openwebtorrent.com:443/announce",
-  "wss://tracker.btorrent.xyz",
-  "wss://tracker.webtorrent.io",
+  "wss://tracker.webtorrent.dev",
+  "wss://tracker.openwebtorrent.com",
   "wss://tracker.files.fm:7073/announce",
-  // "wss://spacetradersapi-chatbox.herokuapp.com:443/announce",
+  "wss://tooldb-tracker.herokuapp.com/",
+  //"wss://tracker.fastcast.nz/announce",
+  //"wss://tracker.btorrent.xyz/announce",
+  //"wss://tracker.webtorrent.io/announce",
+  //"wss://spacetradersapi-chatbox.herokuapp.com:443/announce",
 ];
 
 export default class ToolDbNetwork extends ToolDbNetworkAdapter {
