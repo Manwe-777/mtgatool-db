@@ -16,6 +16,7 @@ export default function handlePut(
         if (oldData) {
           const parsedOldData: PutMessage = {
             type: "put",
+            to: [],
             ...JSON.parse(oldData),
           };
           if (parsedOldData.t < message.t) {

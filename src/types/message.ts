@@ -1,4 +1,4 @@
-import { Peer } from "./tooldb";
+import { AllowedFunctionArguments, FunctionCodes, Peer } from "./tooldb";
 
 export enum VerifyResult {
   CustomVerificationFailed = "CustomVerificationFailed",
@@ -28,6 +28,8 @@ export type MessageType =
   | "pong"
   | "query"
   | "queryAck"
+  | "function"
+  | "functionReturn"
   | "subscribe"
   | "get"
   | "put"
@@ -77,6 +79,18 @@ export interface QueryAckMessage extends BaseMessage {
   keys: string[];
 }
 
+export interface FunctionMessage extends BaseMessage {
+  type: "function";
+  function: string;
+  args: AllowedFunctionArguments[];
+}
+
+export interface FunctionReturnMessage extends BaseMessage {
+  type: "functionReturn";
+  code: FunctionCodes;
+  return: string;
+}
+
 export interface SubscribeMessage extends BaseMessage {
   type: "subscribe";
   key: string;
@@ -113,6 +127,8 @@ export type ToolDbMessage =
   | PongMessage
   | QueryMessage
   | QueryAckMessage
+  | FunctionMessage
+  | FunctionReturnMessage
   | SubscribeMessage
   | GetMessage
   | PutMessage

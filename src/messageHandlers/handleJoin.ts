@@ -18,7 +18,7 @@ export default function handleJoin(
         message.peer.port
       ) {
         // Add this peer to the list
-        this.peers[message.peer.pubkey.slice(-20)] = message.peer;
+        this.peers[message.peer.pubkey] = message.peer;
 
         // Reply with our servers list
         this.network.sendToClientId(remotePeerId, {
@@ -27,6 +27,7 @@ export default function handleJoin(
             (p) => p.topic === message.peer.topic
           ),
           id: message.id,
+          to: [],
         } as ServersMessage);
 
         // If we are a server ourselves we broadcast this message

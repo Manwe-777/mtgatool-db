@@ -10,7 +10,7 @@ export default function handleServers(
     verifyPeer(peer).then((verified) => {
       // Add this peer to our list of peers
       if (verified) {
-        this.peers[peer.pubkey.slice(-20)] = peer;
+        this.peers[peer.pubkey] = peer;
       }
     });
   });

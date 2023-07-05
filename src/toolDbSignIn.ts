@@ -115,7 +115,7 @@ export default function toolDbSignIn(
                     };
 
                     base64KeyToHex(parsedKeys.skpub).then((pubKey) => {
-                      this._pubKey = pubKey.slice(0, KEY_PREFIX.length);
+                      this._pubKey = pubKey.slice(KEY_PREFIX.length);
                     });
                     resolve(newKeys);
                   }

@@ -26,8 +26,6 @@ interface MessageQueue {
   to: string[];
 }
 
-const announceSecs = 30;
-
 const defaultTrackerUrls = [
   "wss://tracker.webtorrent.dev",
   "wss://tracker.openwebtorrent.com",
@@ -169,7 +167,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
    */
   private announce = async (socket: WebSocket, infoHash: string) => {
     const pubKey = this.getClientAddress();
-    // this.tooldb.logger("announce", infoHash, pubKey);
+    this.tooldb.logger("announce", infoHash, pubKey);
     if (pubKey) {
       if (this.tooldb.options.server) {
         this.getServerPeerData().then((offer) => {
@@ -338,11 +336,9 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
           return false;
         }
       }).then(() => {
+        // Announce every 10 seconds indefinitely
         setTimeout(function () {
-          _this.announceInterval = setInterval(
-            _this.announceAll,
-            announceSecs * 1000
-          );
+          _this.announceInterval = setInterval(_this.announceAll, 10000);
           _this.announceAll();
         }, 500);
       });
@@ -518,8 +514,8 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
   }
 
   public sendToClientId(clientId: string, msg: ToolDbMessage): void {
-    this.pushToMessageQueue(msg, [clientId]);
     // this.tooldb.logger("sendToClientId", clientId, msg);
+    this.pushToMessageQueue(msg, [clientId]);
     this.tryExecuteMessageQueue();
   }
 

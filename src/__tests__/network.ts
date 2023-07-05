@@ -24,6 +24,20 @@ beforeAll((done) => {
   });
   nodeA.onConnect = () => checkIfOk("a");
 
+  nodeA.addServerFunction("test", (args) => {
+    const [a, b] = args;
+
+    if (typeof a !== "number" || typeof b !== "number") {
+      throw new Error("Invalid arguments");
+    }
+
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve((a as any) + (b as any));
+      }, 1000);
+    });
+  });
+
   // Node B - Server
   nodeB = new ToolDb({
     server: true,
@@ -166,6 +180,36 @@ it("Can cancel GET timeout", () => {
         expect(res).toBe(testValue);
         resolve();
       });
+    });
+  });
+});
+
+it("Can execute a server function", () => {
+  return new Promise<void>((resolve) => {
+    Alice.doFunction("test", [12, 8]).then((d) => {
+      expect(d.return).toBe(20);
+      expect(d.code).toBe("OK");
+      resolve();
+    });
+  });
+});
+
+it("Server function may fail safely", () => {
+  return new Promise<void>((resolve) => {
+    Alice.doFunction("test", []).then((d) => {
+      expect(d.return).toBe("Error: Invalid arguments");
+      expect(d.code).toBe("ERR");
+      resolve();
+    });
+  });
+});
+
+it("Server function may not be found", () => {
+  return new Promise<void>((resolve) => {
+    Alice.doFunction("boom", []).then((d) => {
+      expect(d.return).toBe("Function not found");
+      expect(d.code).toBe("NOT_FOUND");
+      resolve();
     });
   });
 });

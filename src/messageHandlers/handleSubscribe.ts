@@ -31,7 +31,7 @@ export default function handleSubscribe(
   this.store.get(message.key, (err, data) => {
     if (data) {
       try {
-        const oldData = { ...JSON.parse(data), id: message.id };
+        const oldData = { ...JSON.parse(data), id: message.id, to: [] };
         this.network.sendToClientId(remotePeerId, oldData);
       } catch (e) {
         // do nothing

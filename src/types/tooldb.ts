@@ -89,3 +89,11 @@ export interface UserRootData {
   iv: string;
   pass: string;
 }
+
+export type AllowedFunctionArguments = string | number | boolean | null;
+
+export type FunctionCodes = "OK" | "ERR" | "NOT_FOUND";
+
+export type ServerFunction = (
+  args: AllowedFunctionArguments[]
+) => Promise<string>;

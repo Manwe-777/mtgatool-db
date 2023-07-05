@@ -7,6 +7,7 @@ import {
   exportKey,
   generateKeyPair,
   PutMessage,
+  ServerFunction,
   ToolDbMessage,
   VerificationData,
   verifyMessage,
@@ -48,6 +49,8 @@ import handleSubscribe from "./messageHandlers/handleSubscribe";
 
 import { Peer, ToolDbOptions } from "./types/tooldb";
 import arrayBufferToHex from "./utils/arrayBufferToHex";
+import handleFunction from "./messageHandlers/handleFunction";
+import toolDbFunction from "./toolDbFunction";
 
 export const KEY_PREFIX =
   "3059301306072a8648ce3d020106082a8648ce3d03010703420004";
@@ -140,6 +143,8 @@ export default class ToolDb extends EventEmitter {
 
   public queryKeys = toolDbQueryKeys;
 
+  public doFunction = toolDbFunction;
+
   public getPubKey = toolDbGetPubKey;
 
   public serverSync = toolDbServerSync;
@@ -164,6 +169,7 @@ export default class ToolDb extends EventEmitter {
   public handlePut = handlePut;
   public handleQuery = handleQuery;
   public handleSubscribe = handleSubscribe;
+  public handleFunction = handleFunction;
 
   /**
    * id listeners listen for a specific message ID just once
@@ -180,6 +186,23 @@ export default class ToolDb extends EventEmitter {
 
   public getUserNamespacedKey(key: string) {
     return ":" + (this.user?.pubKey || "") + "." + key;
+  }
+
+  /**
+   * Server functions allow the server to define functions to be executed by the clients
+   * It is up to the function creator to specify proper security on these.
+   * Server functions are meant to execute on data stored on the server, in a way the clients
+   * dont have to overload the server, use with caution!
+   * Custom functions are expected to be a Promise that resolves to a string, and arguments are
+   * passed as an array of values. Type and sanity checking is up to the developer.
+   */
+  private _functions: Record<string, ServerFunction> = {};
+
+  get functions() {
+    return this._functions;
+  }
+  public addServerFunction(functionName: string, fn: ServerFunction) {
+    this._functions[functionName] = fn;
   }
 
   /**
