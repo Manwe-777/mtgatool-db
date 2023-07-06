@@ -336,9 +336,11 @@ export default class ToolDb extends EventEmitter {
           this._options.defaultKeys = key;
 
           exportKey("spki", key.publicKey).then((skpub) => {
-            this._pubKey = arrayBufferToHex(skpub as ArrayBuffer).slice(
-              KEY_PREFIX.length
-            );
+            this._pubKey = arrayBufferToHex(skpub as ArrayBuffer);
+
+            if (this._pubKey.startsWith(KEY_PREFIX)) {
+              this._pubKey = this._pubKey.slice(KEY_PREFIX.length);
+            }
 
             this.emit("init", this._pubKey);
           });
@@ -347,9 +349,11 @@ export default class ToolDb extends EventEmitter {
     } else {
       exportKey("spki", this._options.defaultKeys.publicKey as CryptoKey).then(
         (skpub) => {
-          this._pubKey = arrayBufferToHex(skpub as ArrayBuffer).slice(
-            KEY_PREFIX.length
-          );
+          this._pubKey = arrayBufferToHex(skpub as ArrayBuffer);
+
+          if (this._pubKey.startsWith(KEY_PREFIX)) {
+            this._pubKey = this._pubKey.slice(KEY_PREFIX.length);
+          }
 
           this.emit("init", this._pubKey);
         }
