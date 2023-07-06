@@ -1,17 +1,12 @@
-import { AllowedFunctionArguments, FunctionCodes, textRandom } from ".";
+import { AllowedFunctionArguments, FunctionReturnData, textRandom } from ".";
 import ToolDb from "./tooldb";
-
-interface FunctionReturnData {
-  return: AllowedFunctionArguments;
-  code: FunctionCodes;
-}
 
 /**
  * Triggers a FUNCTION request to other peers. If the function executes sucessfully it will return code "OK"
  * @param function function name
  * @param args arguments for the function
  * @param timeout Max time to wait for remote.
- * @returns Promise<Data>
+ * @returns Promise<FunctionReturnData>
  */
 export default function toolDbGet(
   this: ToolDb,

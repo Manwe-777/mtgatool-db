@@ -92,8 +92,15 @@ export interface UserRootData {
 
 export type AllowedFunctionArguments = string | number | boolean | null;
 
+export type AllowedFunctionReturn = string | number | boolean | null;
+
 export type FunctionCodes = "OK" | "ERR" | "NOT_FOUND";
 
 export type ServerFunction = (
   args: AllowedFunctionArguments[]
 ) => Promise<string>;
+
+export interface FunctionReturnData {
+  return: AllowedFunctionReturn;
+  code: FunctionCodes;
+}
