@@ -61,7 +61,6 @@ export default function leveldb(dbName = "tooldb"): ToolDbStore {
   };
 
   store.query = function (key) {
-    console.log("QUERY", key);
     return new Promise((resolve, reject) => {
       try {
         const array: string[] = [];
