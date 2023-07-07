@@ -196,12 +196,15 @@ export default class ToolDb extends EventEmitter {
    * Custom functions are expected to be a Promise that resolves to a string, and arguments are
    * passed as an array of values. Type and sanity checking is up to the developer.
    */
-  private _functions: Record<string, ServerFunction> = {};
+  private _functions: Record<string, ServerFunction<any, any>> = {};
 
   get functions() {
     return this._functions;
   }
-  public addServerFunction(functionName: string, fn: ServerFunction) {
+  public addServerFunction<A, R>(
+    functionName: string,
+    fn: ServerFunction<A, R>
+  ) {
     this._functions[functionName] = fn;
   }
 

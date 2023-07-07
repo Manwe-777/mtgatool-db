@@ -1,4 +1,9 @@
-import { AllowedFunctionArguments, FunctionReturnData, textRandom } from ".";
+import {
+  AllowedFunctionArguments,
+  FunctionReturn,
+  GenericObject,
+  textRandom,
+} from ".";
 import ToolDb from "./tooldb";
 
 /**
@@ -6,14 +11,14 @@ import ToolDb from "./tooldb";
  * @param function function name
  * @param args arguments for the function
  * @param timeout Max time to wait for remote.
- * @returns Promise<FunctionReturnData>
+ * @returns Promise<FunctionReturn>
  */
-export default function toolDbGet(
+export default function toolDbFunction<R, A = GenericObject>(
   this: ToolDb,
   fName: string,
-  args: AllowedFunctionArguments[],
+  args: AllowedFunctionArguments<A>,
   timeoutMs = 10000
-): Promise<FunctionReturnData> {
+): Promise<FunctionReturn<R>> {
   return new Promise((resolve, reject) => {
     this.logger("FUNCTION > " + fName);
 

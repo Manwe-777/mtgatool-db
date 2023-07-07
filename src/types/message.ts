@@ -1,4 +1,9 @@
-import { AllowedFunctionArguments, FunctionCodes, Peer } from "./tooldb";
+import {
+  AllowedFunctionArguments,
+  AllowedFunctionReturn,
+  FunctionCodes,
+  Peer,
+} from "./tooldb";
 
 export enum VerifyResult {
   CustomVerificationFailed = "CustomVerificationFailed",
@@ -82,13 +87,13 @@ export interface QueryAckMessage extends BaseMessage {
 export interface FunctionMessage extends BaseMessage {
   type: "function";
   function: string;
-  args: AllowedFunctionArguments[];
+  args: AllowedFunctionArguments<any>;
 }
 
 export interface FunctionReturnMessage extends BaseMessage {
   type: "functionReturn";
   code: FunctionCodes;
-  return: string;
+  return: AllowedFunctionReturn<any>;
 }
 
 export interface SubscribeMessage extends BaseMessage {
