@@ -24,7 +24,7 @@ beforeAll((done) => {
   });
   nodeA.onConnect = () => checkIfOk("a");
 
-  nodeA.addServerFunction("test", (args) => {
+  nodeA.addServerFunction<number, number[]>("test", (args) => {
     const [a, b] = args;
 
     if (typeof a !== "number" || typeof b !== "number") {
