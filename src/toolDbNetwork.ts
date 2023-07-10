@@ -23,6 +23,7 @@ interface ConnectionAwaiting {
 
 interface MessageQueue {
   message: ToolDbMessage;
+  time: number;
   to: string[];
 }
 
@@ -81,6 +82,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
   public pushToMessageQueue(msg: ToolDbMessage, to: string[]) {
     this._messageQueue.push({
       message: msg,
+      time: Date.now(),
       to,
     });
   }
@@ -523,54 +525,63 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
     // this.tooldb.logger("sendToAllServers", msg);
     this.pushToMessageQueue(
       msg,
-      this.tooldb.serverPeers.map((s) => s.pubkey)
+      this.tooldb.serverPeers
+        .map((s) => s.pubkey)
+        .filter((s) => s !== this.tooldb.getPubKey())
     );
     this.tryExecuteMessageQueue();
   }
 
   private tryExecuteMessageQueue() {
     const sentMessageIDs: string[] = [];
+    const messagesToDelete: string[] = [];
+
+    const pubKey = this.getClientAddress();
     this._messageQueue.forEach((q) => {
       const message = q.message;
-      const pubKey = this.getClientAddress();
 
-      if (pubKey && !message.to.includes(pubKey)) {
-        message.to.push(pubKey);
-      }
-
-      const finalMessageString = JSON.stringify(message);
-
-      if (q.to.length > 0) {
-        // Send only to select clients
-        // try to connect if not found
-        q.to.forEach((toClient) => {
-          if (
-            this.isClientConnected[toClient] &&
-            this.isClientConnected[toClient]()
-          ) {
-            // this.tooldb.logger("Sending to client", toClient);
-            this.clientToSend[toClient](finalMessageString);
-            sentMessageIDs.push(message.id);
-          }
-
-          if (
-            this.tooldb.serverPeers.filter((s) => s.pubkey === toClient)
-              .length === 0
-          ) {
-            this.findServer(toClient);
-          }
-        });
+      if (q.time + 1000 * 60 < Date.now()) {
+        messagesToDelete.push(message.id);
       } else {
-        // send to all currently connected clients
-        Object.keys(this.clientToSend).forEach((toClient) => {
-          if (
-            this.isClientConnected[toClient] &&
-            this.isClientConnected[toClient]()
-          ) {
-            this.clientToSend[toClient](finalMessageString);
-            sentMessageIDs.push(message.id);
-          }
-        });
+        if (pubKey && !message.to.includes(pubKey)) {
+          message.to.push(pubKey);
+        }
+
+        const finalMessageString = JSON.stringify(message);
+        if (q.to.length > 0) {
+          // Send only to select clients
+          // try to connect if not found
+          q.to.forEach((toClient) => {
+            if (
+              !message.to.includes(toClient) &&
+              this.isClientConnected[toClient] &&
+              this.isClientConnected[toClient]()
+            ) {
+              // this.tooldb.logger("Sending to client", toClient);
+              this.clientToSend[toClient](finalMessageString);
+              sentMessageIDs.push(message.id);
+            }
+
+            if (
+              this.tooldb.serverPeers.filter((s) => s.pubkey === toClient)
+                .length === 0
+            ) {
+              this.findServer(toClient);
+            }
+          });
+        } else {
+          // send to all currently connected clients
+          Object.keys(this.clientToSend).forEach((toClient) => {
+            if (
+              !message.to.includes(toClient) &&
+              this.isClientConnected[toClient] &&
+              this.isClientConnected[toClient]()
+            ) {
+              this.clientToSend[toClient](finalMessageString);
+              sentMessageIDs.push(message.id);
+            }
+          });
+        }
       }
     });
 
@@ -581,10 +592,17 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       this._messageQueue.splice(index, 1);
     });
 
+    messagesToDelete.forEach((id) => {
+      const index = this._messageQueue.findIndex(
+        (msg) => msg.message.id === id
+      );
+      this._messageQueue.splice(index, 1);
+    });
+
     if (this._messageQueue.length > 0) {
       setTimeout(() => {
         this.tryExecuteMessageQueue();
-      }, 250);
+      }, 100);
     }
   }
 }
