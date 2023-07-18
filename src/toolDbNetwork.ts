@@ -59,6 +59,8 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
   private serversBlacklist: string[] = [];
 
+  public serverPeers: ServerPeerData[] = [];
+
   private serversFinding: string[] = [];
 
   public announceInterval: any;
@@ -235,6 +237,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
    * Connects to it if found
    */
   public findServer = async (serverKey: string) => {
+    console.log("findServer", serverKey);
     if (!this.serversFinding.includes(serverKey)) {
       this.serversFinding.push(serverKey);
       const infoHash = this.codeToHash(serverKey);
@@ -311,11 +314,11 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       const serverData = JSON.parse(val.offer.sdp);
 
       if (
-        this.tooldb.serverPeers.filter((s) => s.pubkey === serverData.pubKey)
+        this.serverPeers.filter((s) => s.pubKey === serverData.pubKey)
           .length === 0 &&
         this.serversBlacklist.indexOf(serverData.pubKey) === -1
       ) {
-        // this.tooldb.logger("Now we connect to ", serverData);
+        console.log("Now we connect to ", serverData);
         this.connectTo(serverData);
       } else {
         // we already connected, unplug all trackers/unsubscribe
@@ -398,6 +401,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
       const wss = new this.wss(wsUrl);
       let clientId = serverPeer.pubKey;
+      this.serverPeers.push(serverPeer);
 
       // Unlike other network adapters, we can just use the public key
       // to identify connections.
@@ -427,6 +431,9 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
       wss.onclose = (_error: any) => {
         // this.tooldb.logger("wss.onclose");
+        this.serverPeers = this.serverPeers.filter(
+          (s) => s.pubKey !== serverPeer.pubKey
+        );
         if (this.serversBlacklist.indexOf(serverPeer.pubKey) === -1) {
           this.reconnect(serverPeer.pubKey);
         }
@@ -434,6 +441,9 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
       wss.onerror = (_error: any) => {
         // this.tooldb.logger("wss.onerror");
+        this.serverPeers = this.serverPeers.filter(
+          (s) => s.pubKey !== serverPeer.pubKey
+        );
         if (
           _error?.error?.code !== "ETIMEDOUT" &&
           this.serversBlacklist.indexOf(serverPeer.pubKey) === -1
@@ -525,8 +535,8 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
     // this.tooldb.logger("sendToAllServers", msg);
     this.pushToMessageQueue(
       msg,
-      this.tooldb.serverPeers
-        .map((s) => s.pubkey)
+      this.serverPeers
+        .map((s) => s.pubKey)
         .filter((s) => s !== this.tooldb.getPubKey())
     );
     this.tryExecuteMessageQueue();
@@ -563,8 +573,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
             }
 
             if (
-              this.tooldb.serverPeers.filter((s) => s.pubkey === toClient)
-                .length === 0
+              this.serverPeers.filter((s) => s.pubKey === toClient).length === 0
             ) {
               this.findServer(toClient);
             }
