@@ -237,11 +237,10 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
    * Connects to it if found
    */
   public findServer = async (serverKey: string) => {
-    console.log("findServer", serverKey);
     if (!this.serversFinding.includes(serverKey)) {
       this.serversFinding.push(serverKey);
       const infoHash = this.codeToHash(serverKey);
-      // this.tooldb.logger(`findServer: "${serverKey}" (${infoHash})`);
+      this.tooldb.logger(`findServer: "${serverKey}" (${infoHash})`);
 
       this.trackerUrls.forEach(async (url: string) => {
         const socket = await this.makeSocket(url);
@@ -533,12 +532,13 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
   public sendToAllServers(msg: ToolDbMessage): void {
     // this.tooldb.logger("sendToAllServers", msg);
-    this.pushToMessageQueue(
-      msg,
-      this.serverPeers
-        .map((s) => s.pubKey)
-        .filter((s) => s !== this.tooldb.getPubKey())
-    );
+    const serverPeersList = this.serverPeers
+      .map((s) => s.pubKey)
+      .filter((s) => s !== this.tooldb.getPubKey());
+
+    if (serverPeersList.length > 0) {
+      this.pushToMessageQueue(msg, serverPeersList);
+    }
     this.tryExecuteMessageQueue();
   }
 
@@ -560,7 +560,6 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
         const finalMessageString = JSON.stringify(message);
         if (q.to.length > 0) {
           // Send only to select clients
-          // try to connect if not found
           q.to.forEach((toClient) => {
             if (
               !message.to.includes(toClient) &&
@@ -569,13 +568,9 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
             ) {
               // this.tooldb.logger("Sending to client", toClient);
               this.clientToSend[toClient](finalMessageString);
-              sentMessageIDs.push(message.id);
-            }
-
-            if (
-              this.serverPeers.filter((s) => s.pubKey === toClient).length === 0
-            ) {
-              this.findServer(toClient);
+              if (sentMessageIDs.indexOf(message.id) === -1) {
+                sentMessageIDs.push(message.id);
+              }
             }
           });
         } else {
@@ -587,7 +582,9 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
               this.isClientConnected[toClient]()
             ) {
               this.clientToSend[toClient](finalMessageString);
-              sentMessageIDs.push(message.id);
+              if (sentMessageIDs.indexOf(message.id) === -1) {
+                sentMessageIDs.push(message.id);
+              }
             }
           });
         }
