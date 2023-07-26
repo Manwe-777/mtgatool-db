@@ -10,6 +10,7 @@ export interface Peer {
   port: number;
   pubkey: string;
   sig: string;
+  isServer: boolean;
 }
 
 export interface ServerPeerData {

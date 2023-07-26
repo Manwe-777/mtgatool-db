@@ -14,15 +14,8 @@ export default function handlePing(
   verifyPeer(message.peer).then((verified) => {
     // Verify integrity and topic
     if (verified && message.peer.topic === this.options.topic) {
-      this.peers[message.peer.pubkey] = message.peer;
       // Add this peer to our list of peers
-      const filteredPeers = this.serverPeers.filter(
-        (p) => p.pubkey === message.peer.pubkey
-      );
-      if (filteredPeers.length === 0 && message.isServer) {
-        // Add this peer to the list
-        this.serverPeers.push(message.peer);
-      }
+      this.peers[message.peer.pubkey] = message.peer;
 
       this.network.sendToClientId(remotePeerId, {
         type: "pong",

@@ -71,8 +71,6 @@ export default class ToolDb extends EventEmitter {
   private _store;
   private _peers: Record<string, Peer> = {};
 
-  private _serverPeers: Peer[] = [];
-
   public logger = logger;
 
   private _documents: Record<string, FreezeObject<any>> = {};
@@ -108,7 +106,7 @@ export default class ToolDb extends EventEmitter {
   }
 
   get serverPeers() {
-    return this._serverPeers;
+    return Object.values(this._peers).filter((peer) => peer.isServer);
   }
 
   public subscribeData = toolDbSubscribe;

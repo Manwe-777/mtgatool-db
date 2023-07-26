@@ -326,6 +326,7 @@ it("Can verify peers", async () => {
     port: 8080,
     pubkey: pubkeyString,
     sig: signature,
+    isServer: false,
   };
 
   const verified = await verifyPeer(peerData).catch(console.error);
@@ -341,6 +342,7 @@ const peerTest = {
   pubkey:
     "1a96aca22c26a4df3784c266997f45d6f70e39239e6e0b98c1608e4896d5258864529e4c4a7a6b927f6fc0f1d965d3491971fef63b1a7f107bbadc911a3af913",
   sig: "acKlesKWwppyw6poRsKkDFZFwq7CnV1IMMO9H8KDw482wqZGCMKxwqkNwqDDmMOlEw7DpkXCjHc9RCECL8O3worDljBMHS3ClsO4TCzDrXk8w5/DujnCnsKKw7Qk",
+  isServer: false,
 };
 
 it("Can verify peers", async () => {

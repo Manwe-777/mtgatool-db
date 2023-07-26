@@ -16,7 +16,7 @@ export default class ToolDbNetworkAdapter {
     db.on("init", () => {
       if (this.tooldb.options.server) {
         this.getMeAsPeer().then((meAsPeer) => {
-          this.tooldb.serverPeers.push(meAsPeer);
+          this.tooldb.peers[meAsPeer.pubkey] = meAsPeer;
         });
       }
     });
@@ -45,14 +45,16 @@ export default class ToolDbNetworkAdapter {
         this.tooldb.options.host,
         this.tooldb.options.port
       ).then((signature) => {
-        return {
+        const me: Peer = {
           topic: this.tooldb.options.topic,
           timestamp: timestamp,
           host: this.tooldb.options.host,
           port: this.tooldb.options.port,
           pubkey: this.tooldb.getPubKey(),
           sig: signature,
-        } as Peer;
+          isServer: this.tooldb.options.server,
+        };
+        return me;
       });
   }
 

@@ -59,8 +59,6 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
   private serversBlacklist: string[] = [];
 
-  public serverPeers: ServerPeerData[] = [];
-
   private serversFinding: string[] = [];
 
   public announceInterval: any;
@@ -313,7 +311,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       const serverData = JSON.parse(val.offer.sdp);
 
       if (
-        this.serverPeers.filter((s) => s.pubKey === serverData.pubKey)
+        this.tooldb.serverPeers.filter((s) => s.pubkey === serverData.pubKey)
           .length === 0 &&
         this.serversBlacklist.indexOf(serverData.pubKey) === -1
       ) {
@@ -400,7 +398,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
       const wss = new this.wss(wsUrl);
       let clientId = serverPeer.pubKey;
-      this.serverPeers.push(serverPeer);
+      // this.serverPeers.push(serverPeer);
 
       // Unlike other network adapters, we can just use the public key
       // to identify connections.
@@ -430,9 +428,6 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
       wss.onclose = (_error: any) => {
         // this.tooldb.logger("wss.onclose");
-        this.serverPeers = this.serverPeers.filter(
-          (s) => s.pubKey !== serverPeer.pubKey
-        );
         if (this.serversBlacklist.indexOf(serverPeer.pubKey) === -1) {
           this.reconnect(serverPeer.pubKey);
         }
@@ -440,9 +435,6 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
       wss.onerror = (_error: any) => {
         // this.tooldb.logger("wss.onerror");
-        this.serverPeers = this.serverPeers.filter(
-          (s) => s.pubKey !== serverPeer.pubKey
-        );
         if (
           _error?.error?.code !== "ETIMEDOUT" &&
           this.serversBlacklist.indexOf(serverPeer.pubKey) === -1
@@ -532,8 +524,8 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
   public sendToAllServers(msg: ToolDbMessage): void {
     // this.tooldb.logger("sendToAllServers", msg);
-    const serverPeersList = this.serverPeers
-      .map((s) => s.pubKey)
+    const serverPeersList = this.tooldb.serverPeers
+      .map((s) => s.pubkey)
       .filter((s) => s !== this.tooldb.getPubKey());
 
     if (serverPeersList.length > 0) {
