@@ -45,7 +45,9 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
   private isNode = typeof jest !== "undefined" || typeof window === "undefined";
 
   private isWebWorker =
-    typeof window === "undefined" && self.document === undefined;
+    typeof window === "undefined" &&
+    typeof self !== "undefined" &&
+    self.document === undefined;
 
   private wss =
     !this.isNode && !this.isWebWorker && this._window
