@@ -17,7 +17,7 @@ export default function handlePong(
         // Verify integrity and topic
         if (verified && peer.topic === this.options.topic) {
           // Add this peer to our list of peers
-          this.peers[peer.pubkey] = peer;
+          this.peers[peer.pubkey] = { ...peer, isServer: true };
         }
       });
     });

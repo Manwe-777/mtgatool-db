@@ -10,7 +10,9 @@ export default function logger(
   arg5?: any
 ) {
   if (this.options.debug) {
-    const isNode = typeof window === "undefined";
+    const isNode =
+      typeof window === "undefined" ? self.document !== undefined : false;
+
     const title = isNode
       ? this.options.storageName
       : "%c" + this.options.storageName;

@@ -1,4 +1,4 @@
-import WebSocket from "ws";
+import WSWebSocket from "ws";
 
 import {
   ToolDb,
@@ -12,10 +12,10 @@ import {
 import arrayBufferToHex from "./utils/arrayBufferToHex";
 import waitFor from "./utils/waitFor";
 
-type SocketMessageFn = (socket: WebSocket, e: { data: any }) => void;
+type SocketMessageFn = (socket: WSWebSocket, e: { data: any }) => void;
 
 interface ConnectionAwaiting {
-  socket: WebSocket;
+  socket: WSWebSocket;
   tries: number;
   defer: null | number;
   server: ServerPeerData;
@@ -44,14 +44,19 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
   private isNode = typeof jest !== "undefined" || typeof window === "undefined";
 
+  private isWebWorker =
+    typeof window === "undefined" && self.document === undefined;
+
   private wss =
-    !this.isNode && this._window
+    !this.isNode && !this.isWebWorker && this._window
       ? this._window.WebSocket ||
         this._window.webkitWebSocket ||
         this._window.mozWebSocket
-      : WebSocket;
+      : this.isWebWorker
+      ? WebSocket
+      : WSWebSocket;
 
-  private sockets: Record<string, WebSocket> = {};
+  private sockets: Record<string, WSWebSocket> = {};
 
   private socketListeners: Record<string, SocketMessageFn> = {};
 
@@ -69,7 +74,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
   private _awaitingConnections: Record<string, ConnectionAwaiting> = {};
 
-  public server: WebSocket.Server | null = null;
+  public server: WSWebSocket.Server | null = null;
 
   // We need to create a queue to handle a situation when we need
   // to contact a server, but we havent connected to it yet.
@@ -97,14 +102,14 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
    * Makes a websocket connection to a tracker
    */
   private makeSocket = (url: string) => {
-    return new Promise<WebSocket | null>((resolve) => {
+    return new Promise<WSWebSocket | null>((resolve) => {
       if (!this.sockets[url]) {
         // this.tooldb.logger("begin tracker connection " + url);
 
         this.socketListeners[url] = this.onSocketMessage;
 
         try {
-          const socket = new this.wss(url) as WebSocket;
+          const socket = new this.wss(url) as WSWebSocket;
           this.sockets[url] = socket;
           // eslint-disable-next-line @typescript-eslint/no-this-alias
           const _this = this;
@@ -167,9 +172,9 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
   /**
    * Announce ourselves to a tracker (send "announce")
    */
-  private announce = async (socket: WebSocket, infoHash: string) => {
+  private announce = async (socket: WSWebSocket, infoHash: string) => {
     const pubKey = this.getClientAddress();
-    this.tooldb.logger("announce", infoHash, pubKey);
+    // this.tooldb.logger("announce", infoHash, pubKey);
     if (pubKey) {
       if (this.tooldb.options.server) {
         this.getServerPeerData().then((offer) => {
@@ -242,6 +247,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
       this.trackerUrls.forEach(async (url: string) => {
         const socket = await this.makeSocket(url);
+        // this.tooldb.logger(`socket:`, socket, url, socket?.readyState);
         if (socket && socket.readyState === 1) {
           this.announce(socket, infoHash);
         }
@@ -265,7 +271,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
    * Handle the tracker messages
    */
   private onSocketMessage: SocketMessageFn = async (
-    socket: WebSocket,
+    socket: WSWebSocket,
     e: any
   ) => {
     let val: {
@@ -308,11 +314,13 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
       this.handledOffers[val.offer_id] = true;
 
-      const serverData = JSON.parse(val.offer.sdp);
+      const serverData: ServerPeerData = JSON.parse(val.offer.sdp);
 
       if (
         this.tooldb.serverPeers.filter((s) => s.pubkey === serverData.pubKey)
           .length === 0 &&
+        !this._awaitingConnections[serverData.pubKey] &&
+        !this.serverPeerData[serverData.pubKey] &&
         this.serversBlacklist.indexOf(serverData.pubKey) === -1
       ) {
         console.log("Now we connect to ", serverData);
@@ -349,12 +357,12 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
     // Basically the same as the WS network adapter
     // Only for Node!
     if (this.tooldb.options.server && this.isNode) {
-      this.server = new WebSocket.Server({
+      this.server = new WSWebSocket.Server({
         port: this.tooldb.options.port,
         server: this.tooldb.options.httpServer,
       });
 
-      this.server.on("connection", (socket: WebSocket) => {
+      this.server.on("connection", (socket: WSWebSocket) => {
         let clientId: string | null = null;
 
         socket.on("close", () => {
@@ -457,7 +465,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
         this.serverPeerData[serverPeer.pubKey] = serverPeer;
       };
 
-      wss.onmessage = (msg: WebSocket.MessageEvent) => {
+      wss.onmessage = (msg: WSWebSocket.MessageEvent) => {
         if (!msg) {
           return;
         }
