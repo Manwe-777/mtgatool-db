@@ -22,7 +22,7 @@ if (typeof atob === "undefined") {
 
 if (typeof window === "undefined") {
   // Only set global crypto if we are in node, not for web workers
-  if (self.document !== undefined) {
+  if (typeof self !== "undefined" && self.document !== undefined) {
     global.crypto = require("crypto").webcrypto;
   }
   (global as any).ecp256 = new elliptic.ec("p256");
