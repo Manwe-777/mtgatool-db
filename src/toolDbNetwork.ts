@@ -338,6 +338,10 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
   constructor(db: ToolDb) {
     super(db);
 
+    setInterval(() => {
+      this.tryExecuteMessageQueue();
+    }, 100);
+
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const _this = this;
     if (_this.tooldb.options.server) {
@@ -563,8 +567,9 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
         if (q.to.length > 0) {
           // Send only to select clients
           q.to.forEach((toClient) => {
-            if (
-              !message.to.includes(toClient) &&
+            if (!message.to.includes(toClient)) {
+              messagesToDelete.push(message.id);
+            } else if (
               this.isClientConnected[toClient] &&
               this.isClientConnected[toClient]()
             ) {
@@ -578,8 +583,9 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
         } else {
           // send to all currently connected clients
           Object.keys(this.clientToSend).forEach((toClient) => {
-            if (
-              !message.to.includes(toClient) &&
+            if (!message.to.includes(toClient)) {
+              messagesToDelete.push(message.id);
+            } else if (
               this.isClientConnected[toClient] &&
               this.isClientConnected[toClient]()
             ) {
@@ -606,11 +612,5 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       );
       this._messageQueue.splice(index, 1);
     });
-
-    if (this._messageQueue.length > 0) {
-      setTimeout(() => {
-        this.tryExecuteMessageQueue();
-      }, 100);
-    }
   }
 }
