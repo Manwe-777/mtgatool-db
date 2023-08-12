@@ -338,6 +338,10 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
   constructor(db: ToolDb) {
     super(db);
 
+    setInterval(() => {
+      this.tryExecuteMessageQueue();
+    }, 500);
+
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const _this = this;
     if (_this.tooldb.options.server) {
@@ -606,11 +610,5 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       );
       this._messageQueue.splice(index, 1);
     });
-
-    if (this._messageQueue.length > 0) {
-      setTimeout(() => {
-        this.tryExecuteMessageQueue();
-      }, 100);
-    }
   }
 }
