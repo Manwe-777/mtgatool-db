@@ -10,3 +10,10 @@ test-keys-b
 test-verify-a
 keys.json
 tooldb
+.eslintrc.json
+.github
+custom-test-env.js
+jest.config.js
+jest.setup.js
+pvutils-tests-replacement.js
+tsconfig.json
