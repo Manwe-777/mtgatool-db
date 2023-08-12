@@ -70,6 +70,8 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
   public announceInterval: any;
 
+  private _queueInterval: any;
+
   private trackerUrls = defaultTrackerUrls; // .slice(0, 2);
 
   private handledOffers: Record<string, boolean> = {};
@@ -335,12 +337,38 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
     }
   };
 
+  public startQueue = (interval = 100) => {
+    this._queueInterval = setInterval(() => {
+      this.tryExecuteMessageQueue();
+    }, interval);
+  };
+
+  public close = () => {
+    if (this.server) {
+      this.server.close();
+    }
+    this.stopAnnounce();
+    if (this._queueInterval) {
+      clearInterval(this._queueInterval);
+    }
+    Object.values(this.sockets).forEach((socket) => {
+      if (socket) {
+        try {
+          socket.terminate();
+          socket.close();
+        } catch {
+          // ignore
+        }
+      }
+    });
+  };
+
   constructor(db: ToolDb) {
     super(db);
 
-    setInterval(() => {
-      this.tryExecuteMessageQueue();
-    }, 100);
+    // setInterval(() => {
+    //   this.tryExecuteMessageQueue();
+    // }, 100);
 
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const _this = this;
