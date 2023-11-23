@@ -524,14 +524,15 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
   };
 
   public disconnect = (pubKey: string) => {
-    if (this._awaitingConnections[pubKey]) {
-      this._awaitingConnections[pubKey].socket.close();
-      this.removeFromAwaiting(pubKey);
+    this.tooldb.logger(`disconnecting from ${pubKey}`);
+    const wss = this.clientSocket[pubKey] as WSWebSocket;
+    if (wss && wss.readyState === wss.OPEN) {
+      wss.close();
+      wss.onclose = () => {
+        this.tooldb.logger(`disconnected from ${pubKey} sucessfully`);
+      };
     }
-    if (this.isClientConnected[pubKey] && this.clientSocket[pubKey]) {
-      this.clientSocket[pubKey].close();
-      delete this.clientSocket[pubKey];
-    }
+    this.removeFromAwaiting(pubKey);
   };
 
   public sendToAll(msg: ToolDbMessage, crossServerOnly = false) {
