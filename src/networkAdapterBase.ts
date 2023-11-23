@@ -4,6 +4,8 @@ import getPeerSignature from "./utils/getPeerSignature";
 export default class ToolDbNetworkAdapter {
   private _clientToSend: Record<string, (message: string) => void> = {};
 
+  private _clientSocket: Record<string, any> = {};
+
   private _isClientConnected: Record<string, () => boolean> = {};
 
   private _clientIsServer: Record<string, boolean> = {};
@@ -24,6 +26,10 @@ export default class ToolDbNetworkAdapter {
 
   get clientToSend() {
     return this._clientToSend;
+  }
+
+  get clientSocket() {
+    return this._clientSocket;
   }
 
   get isClientConnected() {

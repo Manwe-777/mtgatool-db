@@ -389,6 +389,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
             this.isClientConnected[id] = () => {
               return socket.readyState === socket.OPEN;
             };
+            this.clientSocket[id] = socket;
             this.clientToSend[id] = (_msg: string) => {
               socket.send(_msg);
             };
@@ -421,6 +422,8 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       this.isClientConnected[serverPeer.pubKey] = () => {
         return wss.readyState === wss.OPEN;
       };
+
+      this.clientSocket[serverPeer.pubKey] = wss;
 
       this.clientToSend[serverPeer.pubKey] = (_msg: string) => {
         wss.send(_msg);
@@ -496,16 +499,17 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       }
 
       this.tooldb.logger(`tries: ${connection.tries}`);
-      if (
-        connection.tries < this.tooldb.options.maxRetries &&
-        this.serversBlacklist.indexOf(pubkey) === -1
-      ) {
+      if (connection.tries < this.tooldb.options.maxRetries) {
         const defer = () => {
           this._awaitingConnections[pubkey].tries += 1;
           this.tooldb.logger(
-            `connection to ${connection.server.host}:${connection.server.port} retry.`
+            `connection to ${connection.server.host}:${
+              connection.server.port
+            } retry in ${connection.tries * 2} seconds.`
           );
-          this.connectTo(connection.server);
+          setTimeout(() => {
+            this.connectTo(connection.server);
+          }, connection.tries * 2000);
         };
 
         connection.defer = setTimeout(defer, this.tooldb.options.wait) as any;
@@ -513,11 +517,21 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
         this.tooldb.logger(
           `connection attempts to ${connection.server.host}:${connection.server.port} exceeded,`
         );
-        this.serversBlacklist.push(pubkey);
         this.removeFromAwaiting(pubkey);
       }
     }
     // else , attempting to reconnect to a missing peer?
+  };
+
+  public disconnect = (pubKey: string) => {
+    if (this._awaitingConnections[pubKey]) {
+      this._awaitingConnections[pubKey].socket.close();
+      this.removeFromAwaiting(pubKey);
+    }
+    if (this.isClientConnected[pubKey] && this.clientSocket[pubKey]) {
+      this.clientSocket[pubKey].close();
+      delete this.clientSocket[pubKey];
+    }
   };
 
   public sendToAll(msg: ToolDbMessage, crossServerOnly = false) {

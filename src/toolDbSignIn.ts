@@ -8,8 +8,7 @@ import sha256 from "./utils/sha256";
 
 import { UserRootData } from ".";
 
-import ToolDb, { KEY_PREFIX } from "./tooldb";
-import base64KeyToHex from "./utils/crypto/base64KeyToHex";
+import ToolDb from "./tooldb";
 
 export default function toolDbSignIn(
   this: ToolDb,
