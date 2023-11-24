@@ -405,7 +405,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
    * @returns websocket
    */
   public connectTo = (serverPeer: ServerPeerData): WebSocket | undefined => {
-    // this.tooldb.logger("connectTo:", serverPeer);
+    this.tooldb.logger("connectTo:", serverPeer);
     try {
       const wsUrl = serverPeer.ssl
         ? "wss://" + serverPeer.host
@@ -444,14 +444,14 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       }
 
       wss.onclose = (_error: any) => {
-        // this.tooldb.logger("wss.onclose");
+        this.tooldb.logger("wss.onclose", serverPeer);
         if (this.serversBlacklist.indexOf(serverPeer.pubKey) === -1) {
           this.reconnect(serverPeer.pubKey);
         }
       };
 
       wss.onerror = (_error: any) => {
-        // this.tooldb.logger("wss.onerror");
+        this.tooldb.logger("wss.onerror", serverPeer);
         if (
           _error?.error?.code !== "ETIMEDOUT" &&
           this.serversBlacklist.indexOf(serverPeer.pubKey) === -1
