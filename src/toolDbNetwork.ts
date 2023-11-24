@@ -519,8 +519,9 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
         );
         this.removeFromAwaiting(pubkey);
       }
+    } else {
+      this.connectTo(this.serverPeerData[pubkey]);
     }
-    // else , attempting to reconnect to a missing peer?
   };
 
   public disconnect = (pubKey: string) => {
