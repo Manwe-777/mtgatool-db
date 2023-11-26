@@ -6,13 +6,16 @@ import ToolDb from "./tooldb";
  * Triggers a QUERY request to other peers.
  * @param key start of the key
  * @param userNamespaced If this key bolongs to a user or its public.
+ * @param timeout Max time to wait for remote.
+ * @param remoteOnly Only query remote peers, do not query local store.
  * @returns Promise<Data>
  */
 export default function toolDbQueryKeys(
   this: ToolDb,
   key: string,
   userNamespaced = false,
-  timeoutMs = 1000
+  timeoutMs = 1000,
+  remoteOnly = false
 ): Promise<string[] | null> {
   return new Promise((resolve, reject) => {
     if (userNamespaced && this.user?.pubKey === undefined) {
@@ -41,13 +44,15 @@ export default function toolDbQueryKeys(
     let foundKeys: string[] = [];
     let timeout: NodeJS.Timeout | undefined;
 
-    let gotLocalKeys = false;
+    let gotLocalKeys = remoteOnly;
 
-    this.store.query(finalKey).then((localKeys) => {
-      gotLocalKeys = true;
-      foundKeys = [...foundKeys, ...localKeys];
-      timeout = setTimeout(finishListening, timeoutMs);
-    });
+    if (remoteOnly === false) {
+      this.store.query(finalKey).then((localKeys) => {
+        gotLocalKeys = true;
+        foundKeys = [...foundKeys, ...localKeys];
+        timeout = setTimeout(finishListening, timeoutMs);
+      });
+    }
 
     const finishListening = () => {
       resolve(_.uniq(foundKeys));
