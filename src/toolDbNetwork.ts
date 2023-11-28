@@ -86,6 +86,17 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
     return this._messageQueue;
   }
 
+  public checkDisconnetion() {
+    if (
+      Object.values(this.clientSocket).every((s: WSWebSocket) => {
+        return s.readyState !== s.OPEN;
+      })
+    ) {
+      this.tooldb.onDisconnect();
+      this.tooldb.isConnected = false;
+    }
+  }
+
   public pushToMessageQueue(msg: ToolDbMessage, to: string[]) {
     this._messageQueue.push({
       message: msg,
@@ -445,6 +456,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
       wss.onclose = (_error: any) => {
         this.tooldb.logger("wss.onclose", serverPeer);
+        this.checkDisconnetion();
         if (this.serversBlacklist.indexOf(serverPeer.pubKey) === -1) {
           this.reconnect(serverPeer.pubKey);
         }
@@ -452,6 +464,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
 
       wss.onerror = (_error: any) => {
         this.tooldb.logger("wss.onerror", serverPeer);
+        this.checkDisconnetion();
         if (
           _error?.error?.code !== "ETIMEDOUT" &&
           this.serversBlacklist.indexOf(serverPeer.pubKey) === -1
@@ -534,6 +547,7 @@ export default class ToolDbNetwork extends ToolDbNetworkAdapter {
       };
     }
     this.removeFromAwaiting(pubKey);
+    this.checkDisconnetion();
   };
 
   public sendToAll(msg: ToolDbMessage, crossServerOnly = false) {
