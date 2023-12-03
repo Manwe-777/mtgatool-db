@@ -22,7 +22,7 @@ export default function handleFunction(
         })
         .catch((e) => {
           const messageReturn: FunctionReturnMessage = {
-            return: JSON.stringify(e),
+            return: e.toString() || JSON.stringify(e.message || e),
             type: "functionReturn",
             id: message.id,
             code: "ERR",
@@ -35,7 +35,7 @@ export default function handleFunction(
       // something went wrong, nothing to do here
       // We might want to return the exception to the client?
       const messageReturn: FunctionReturnMessage = {
-        return: e.toString(),
+        return: e.toString() || JSON.stringify(e.message || e),
         type: "functionReturn",
         id: message.id,
         code: "ERR",
